@@ -28,9 +28,7 @@
       "wss://relay.snort.social"
     ],
     "54f308819534cb07550e1ddac1476b99f79b4678adb69dfeaec781ebd9bc7c88": [
-      "wss://relay.primal.net",
-      "wss://nos.lol",
-      "wss://relay.snort.social"
+       "ws://localhost:7777"
     ]
   },
   "profiles": {
