@@ -1,12 +1,12 @@
 // Sticky application topbar with brand mark, search input, nav links, and auth avatar.
 // When brandHasPopover is true, the beacon pulses to draw attention to the first-visit popover.
-// The brand always goes home (/home — / is only a redirect to it). onBrandClick is an
-// optional override for pages that need side effects first (HomeClient dismisses the
-// first-visit popover); without it the mark is a plain <Link>, so content pages like /about
+// The brand goes to the Explore feed (/explore); `/` is the product landing page. onBrandClick is an
+// optional override for pages that need side effects first (ExploreClient dismisses the
+// first-visit popover); without it the mark is a plain <Link>, so content pages like /
 // and /feedback get working brand navigation for free.
 //
 // The search box only renders when a page passes onSearchChange. Static content routes
-// (/about, /feedback) have nothing to search, and an inert input that
+// (/, /feedback) have nothing to search, and an inert input that
 // swallows Ctrl+K reads as broken.
 
 'use client';
@@ -23,9 +23,9 @@ import { authorDisplayName } from '@/lib/nostr/profiles';
 import { useOwnProfile } from '@/hooks/useOwnProfile';
 import type { AuthState } from '@/lib/types';
 
-// The feed is home: `/` is a client-side redirect to it (see app/page.tsx), so linking
-// straight here avoids a pointless double navigation.
-const HOME_HREF = '/home';
+// The brand opens the feed rather than the landing page: returning users come for the
+// feed, and the nav rail links the landing page as "About".
+const HOME_HREF = '/explore';
 
 interface TopBarProps {
   auth: AuthState;
@@ -138,7 +138,7 @@ export default function TopBar({ auth, onSignIn, brandHasPopover, onBrandClick, 
       <Link
         href={HOME_HREF}
         className={`brand brand-clickable ${brandHasPopover ? 'brand-pulse' : ''}`}
-        aria-label="Wirthy — home"
+        aria-label="Wirthy — Explore"
         onClick={onBrandClick}
       >
         <span className="brand-mark" aria-hidden="true">
@@ -164,9 +164,9 @@ export default function TopBar({ auth, onSignIn, brandHasPopover, onBrandClick, 
       )}
 
       <div className="topbar-right">
-        {navLink('/home', 'Home', 'Clips that have been broadcast on Nostr')}
+        {navLink('/explore', 'Explore', 'Clips that have been broadcast on Nostr')}
         {extensionPresent && navLink('/clips', 'My Clips', 'Clips stored only on this device')}
-        {navLink('/about', 'About')}
+        {navLink('/', 'About')}
         {/* An icon rather than a 4th nav link — the right rail already carries three
             links, two icon buttons, and two status dots. */}
         <Link href="/feedback" className="icon-btn" title="Feedback & support">

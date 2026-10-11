@@ -1,6 +1,7 @@
-// Main public Cast feed shell — the home page's primary content area.
-// Owns all filter state (category, signal minimum, qualifiers, active follow) and
-// derives the filtered clip list. Renders the three-column layout: Sidebar / feed list / DetailPanel.
+// Main public Cast feed shell — the Explore page's primary content area.
+// Filter state (category, signals, qualifiers, authors, unread, search) is controlled by
+// the page, which mirrors it into the URL; this derives the filtered clip list and renders
+// the three-column layout: Sidebar / feed list / DetailPanel.
 
 'use client';
 
@@ -8,6 +9,8 @@ import { useState, useMemo } from 'react';
 import { npubEncode } from 'nostr-tools/nip19';
 import { CATEGORIES, SIGNAL_LEVELS, deriveQualifierOptions, matchesAuthors, matchesQualifiers, matchesSignal } from '@/lib/constants';
 import type { ClipData } from '@/lib/types';
+import { EMPTY_FILTERS, type FeedFilters } from '@/lib/feed-url';
+import { castPath } from '@/lib/nostr/cast-ref';
 import type { ClipBody } from '@/lib/bridge/ClipStoreContext';
 import type { FollowProfile } from '@/lib/nostr/follows';
 import { authorDisplayName, type AuthorProfile } from '@/lib/nostr/profiles';
@@ -31,6 +34,7 @@ interface Publisher {
 // Left sidebar: View shortcuts, follows list, publishers list, and
 // signal/qualifier/category filter controls.
 interface SidebarProps {
+  title?: string;
   activeCat: string | null;
   setActiveCat: (c: string | null) => void;
   activeSignals: string[];
@@ -70,6 +74,7 @@ function avatarInitial(pubkey: string, name?: string): string {
 }
 
 function Sidebar({
+  title = 'Explore',
   activeCat, setActiveCat,
   activeSignals, toggleSignal,
   activeQuals, toggleQual, qualOptions,
@@ -93,7 +98,7 @@ function Sidebar({
   return (
     <aside className="sidebar">
       <div className="sidebar-head">
-        <h1 className="feed-title"><em>Home</em></h1>
+        <h1 className="feed-title"><em>{title}</em></h1>
       </div>
 
       <div className="sidebar-scroll">
@@ -265,7 +270,7 @@ function Sidebar({
 
 // One clip's full detail view inside the Stream (focus) view. Thin wrapper over
 // DetailPanel — delete/note-edit are no-ops here, same as the single detail pane,
-// since the public Home feed has no owned clips to mutate.
+// since the public Explore feed has no owned clips to mutate.
 function StreamCard({
   clip,
   author,
@@ -284,13 +289,18 @@ function StreamCard({
       bodies={EMPTY_BODIES}
       onBodyFetched={() => {}}
       onAuthorContextMenu={onAuthorContextMenu}
+      shareHref={clip ? castPath(clip) : null}
     />
   );
 }
 
 interface CastFeedProps {
   clips: ClipData[];
-  searchQuery?: string;
+  /** Controlled filter state (the page mirrors it into the URL). `q` is the top-bar search. */
+  filters: FeedFilters;
+  onFiltersChange: (f: FeedFilters) => void;
+  /** Sidebar heading; defaults to "Explore" (a publisher page passes "Posts by …"). */
+  title?: string;
   follows?: FollowProfile[];
   authors?: Map<string, AuthorProfile>;
   isSignedIn?: boolean;
@@ -307,24 +317,30 @@ const EMPTY_READ: Set<string> = new Set();
 
 const EMPTY_AUTHORS: Map<string, AuthorProfile> = new Map();
 
-// The public Home feed has no owned clips to fetch bodies for (bodyHtml/
+// The public Explore feed has no owned clips to fetch bodies for (bodyHtml/
 // markdown/bodyText already arrive with the clip from Nostr) — DetailPanel's
 // body-cache plumbing is unused here, so every instance shares one empty map
 // rather than each allocating its own on every render.
 const EMPTY_BODIES: Map<string, ClipBody> = new Map();
 
-export default function CastFeed({ clips, searchQuery, follows = [], authors = EMPTY_AUTHORS, isSignedIn = false, read, markRead, extensionPresent = false }: CastFeedProps) {
+// Add `value` if absent, remove it if present.
+function toggled(list: string[], value: string): string[] {
+  return list.includes(value) ? list.filter((x) => x !== value) : [...list, value];
+}
+
+export default function CastFeed({ clips, filters, onFiltersChange, title, follows = [], authors = EMPTY_AUTHORS, isSignedIn = false, read, markRead, extensionPresent = false }: CastFeedProps) {
   const readSet = read ?? EMPTY_READ;
   const { isFollowing, toggleFollow } = useFollowMutation(follows, extensionPresent);
   const [authorMenu, setAuthorMenu] = useState<{ pubkey: string; x: number; y: number } | null>(null);
   const openAuthorMenu = (pubkey: string, x: number, y: number) => setAuthorMenu({ pubkey, x, y });
-  const [activeCat, setActiveCat] = useState<string | null>(null);
-  const [activeSignals, setActiveSignals] = useState<string[]>([]);
-  const [activeQuals, setActiveQuals] = useState<string[]>([]);
-  // Author pubkeys selected in EITHER the Following or Publishers list — one shared
-  // set, since a person can be listed in both.
-  const [activeAuthors, setActiveAuthors] = useState<string[]>([]);
-  const [unreadOnly, setUnreadOnly] = useState(false);
+  // Filter state is owned by the page (it lives in the URL); these are its views.
+  // activeAuthors holds pubkeys selected in EITHER the Following or Publishers list —
+  // one shared set, since a person can be listed in both.
+  const { category: activeCat, signals: activeSignals, qualifiers: activeQuals, authors: activeAuthors, unreadOnly } = filters;
+  const update = (patch: Partial<FeedFilters>) => onFiltersChange({ ...filters, ...patch });
+  const setActiveCat = (category: string | null) => update({ category });
+  const setUnreadOnly = (v: boolean) => update({ unreadOnly: v });
+  const searchQuery = filters.q;
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [sortOrder, setSortOrder] = useState<SortOrder>('recent');
   // 'list' shows sidebar + feed list + detail; 'focus' hides the feed list so the
@@ -349,20 +365,12 @@ export default function CastFeed({ clips, searchQuery, follows = [], authors = E
       .sort((a, b) => b.count - a.count);
   }, [clips]);
 
-  const toggleSignal = (sig: string) =>
-    setActiveSignals((prev) => (prev.includes(sig) ? prev.filter((x) => x !== sig) : [...prev, sig]));
-  const toggleQual = (qual: string) =>
-    setActiveQuals((prev) => (prev.includes(qual) ? prev.filter((x) => x !== qual) : [...prev, qual]));
-  const toggleAuthor = (pubkey: string) =>
-    setActiveAuthors((prev) => (prev.includes(pubkey) ? prev.filter((x) => x !== pubkey) : [...prev, pubkey]));
+  const toggleSignal = (sig: string) => update({ signals: toggled(activeSignals, sig) });
+  const toggleQual = (qual: string) => update({ qualifiers: toggled(activeQuals, qual) });
+  const toggleAuthor = (pubkey: string) => update({ authors: toggled(activeAuthors, pubkey) });
 
-  const clearFilters = () => {
-    setActiveSignals([]);
-    setActiveQuals([]);
-    setActiveCat(null);
-    setActiveAuthors([]);
-    setUnreadOnly(false);
-  };
+  // Search is the top bar's, so "All" leaves it alone.
+  const clearFilters = () => update({ ...EMPTY_FILTERS, q: filters.q });
 
   // Pill labels for the selected authors. A follow carries its own kind-3 name, which
   // is the better label when the author has no kind-0 in the feed's profile map.
@@ -423,8 +431,8 @@ export default function CastFeed({ clips, searchQuery, follows = [], authors = E
       activeQuals={activeQuals}
       activeCat={activeCat}
       activeAuthors={activeAuthorPills}
-      onClearSignal={(sig) => setActiveSignals((prev) => prev.filter((x) => x !== sig))}
-      onClearQual={(qual) => setActiveQuals((prev) => prev.filter((x) => x !== qual))}
+      onClearSignal={(sig) => update({ signals: activeSignals.filter((x) => x !== sig) })}
+      onClearQual={(qual) => update({ qualifiers: activeQuals.filter((x) => x !== qual) })}
       onClearCat={() => setActiveCat(null)}
       onClearAuthor={toggleAuthor}
       onClearAll={clearFilters}
@@ -485,6 +493,7 @@ export default function CastFeed({ clips, searchQuery, follows = [], authors = E
       <ResizableLayout
         sidebar={
           <Sidebar
+            title={title}
             activeCat={activeCat} setActiveCat={setActiveCat}
             activeSignals={activeSignals} toggleSignal={toggleSignal}
             activeQuals={activeQuals} toggleQual={toggleQual} qualOptions={qualOptions}

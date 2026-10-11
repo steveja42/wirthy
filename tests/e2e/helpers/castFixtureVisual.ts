@@ -14,7 +14,7 @@
 //                → __WIRTHY_TEST_CAST    (real deriveLongFormMarkdown
 //                                            + real buildCastTemplates)
 //                → sign with a throwaway key
-//                → /home via a mocked relay (real feed + DetailPanel)
+//                → /explore via a mocked relay (real feed + DetailPanel)
 // Only the signing key and the relay are fakes; nothing about the markdown is
 // reimplemented here.
 

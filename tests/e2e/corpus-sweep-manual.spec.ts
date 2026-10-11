@@ -9,7 +9,7 @@
 //
 // This is a spec (not the old tools/*.mjs) specifically so it can import the TS
 // cast helpers — castShotSafe builds the real kind-30023 cast via the extension's
-// BUILD_CAST bridge and renders it through /home. The .mjs couldn't do that.
+// BUILD_CAST bridge and renders it through /explore. The .mjs couldn't do that.
 //
 // Requires: Chrome fully closed (single-instance lock on Profile 3), pnpm dev
 // running (web app :3000), dist-test built. Run:

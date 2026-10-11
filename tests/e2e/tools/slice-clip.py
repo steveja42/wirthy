@@ -138,7 +138,7 @@ def main() -> None:
     else:
         domains = [d.strip() for d in args.domains.split(",") if d.strip()]
     # --cast slices the CAST image instead of the clip. The cast is a separate
-    # render (kind-30023 markdown through /home) with its own failure modes
+    # render (kind-30023 markdown through /explore) with its own failure modes
     # -- dropped headline, link-pill spills -- that a clean clip does not reveal.
     kind = "3-cast" if args.cast else "2-clip"
     suffix = "castslice" if args.cast else "slice"

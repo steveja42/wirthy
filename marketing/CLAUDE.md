@@ -49,7 +49,7 @@ claim against the source before reusing a sentence.
 
 ## Terminology — hard rules
 
-**A published evaluation is a "post".** The public feed is **Home**. Standard call to action: "View more at wirthy.app".
+**A published evaluation is a "post".** The public feed is **Explore**, at `wirthy.app/explore` (it was "Home" at `/home` until 2026-10-07; the old path 301s there). `wirthy.app/` is the product landing page. Standard call to action: "View more at wirthy.app".
 
 **Clip vs. Cast.** A **clip** is private, stored in the user's own browser. A **cast** is
 public, published to Nostr relays. Never blur these — the distinction is the product.

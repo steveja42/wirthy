@@ -7,6 +7,7 @@ import { SimplePool, type Event, type Filter } from 'nostr-tools';
 import { getActiveRelays, getShowTestCasts } from '@/lib/constants';
 import { TEST_CAST_PUBKEY } from '@/lib/nostr/test-cast-author';
 import { LL, log } from '@/lib/logger';
+import type { RelayScope } from '@/lib/feed-url';
 
 const FEED_LIMIT = 50;
 
@@ -26,13 +27,25 @@ export function rawDedupKey(e: Event): string {
   return longFormId ? `${e.pubkey}:${longFormId}` : e.id;
 }
 
+// The base REQ every feed subscription shares, narrowed by an optional relay scope
+// (see relayScope in lib/feed-url.ts) so "all posts by X" isn't capped at the newest 50.
+function baseFilter(scope: RelayScope): Filter {
+  return {
+    kinds: [1, 30023],
+    '#t': ['wirthy'],
+    ...(scope.authors ? { authors: scope.authors } : {}),
+    ...(scope.category ? { '#l': [scope.category] } : {}),
+  };
+}
+
 export function subscribeFeed(
   onEvent: (e: Event) => void,
   onEose: () => void,
+  scope: RelayScope = {},
 ): () => void {
   const relays = [...getActiveRelays()];
   const showTestCasts = getShowTestCasts();
-  log(LL.NORMAL, `[nostr] subscribeFeed connecting to ${relays.length} relay(s) (test casts ${showTestCasts ? 'shown' : 'hidden'}):`, relays);
+  log(LL.NORMAL, `[nostr] subscribeFeed connecting to ${relays.length} relay(s) (test casts ${showTestCasts ? 'shown' : 'hidden'}, scope ${JSON.stringify(scope)}):`, relays);
   const pool = new SimplePool();
 
   let closed = false;
@@ -57,8 +70,7 @@ export function subscribeFeed(
     const nextPage = () => {
       page += 1;
       const filter: Filter = {
-        kinds: [1, 30023],
-        '#t': ['wirthy'],
+        ...baseFilter(scope),
         limit: FEED_LIMIT,
         ...(until !== undefined ? { until } : {}),
       };
@@ -97,7 +109,7 @@ export function subscribeFeed(
     // still stream in live — mirrors the single always-open subscribeMany below.
     const startLiveTail = () => {
       if (closed) return;
-      const filter: Filter = { kinds: [1, 30023], '#t': ['wirthy'], since: Math.floor(Date.now() / 1000) };
+      const filter: Filter = { ...baseFilter(scope), since: Math.floor(Date.now() / 1000) };
       sub = pool.subscribeMany(relays, filter, {
         onevent: (e) => {
           if (closed) return;
@@ -110,7 +122,7 @@ export function subscribeFeed(
 
     nextPage();
   } else {
-    const filter: Filter = { kinds: [1, 30023], '#t': ['wirthy'], limit: FEED_LIMIT };
+    const filter: Filter = { ...baseFilter(scope), limit: FEED_LIMIT };
     sub = pool.subscribeMany(relays, filter, {
       onevent: onEvent,
       oneose: () => {

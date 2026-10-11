@@ -1,4 +1,4 @@
-// The new rating-system filter predicates that drive both the /home feed
+// The new rating-system filter predicates that drive both the /explore feed
 // and the /clips library sidebar. These are the derivation functions behind
 // the Signal pips + Qualifier chips — a regression here silently empties (or
 // fails to narrow) the feed.

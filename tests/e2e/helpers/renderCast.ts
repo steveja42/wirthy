@@ -1,4 +1,4 @@
-// Renders a signed cast event through the REAL public feed (/home +
+// Renders a signed cast event through the REAL public feed (/explore +
 // DetailPanel) and screenshots the resulting .clip-body — the CAST render path
 // (kind-30023 markdown → ReactMarkdown), as opposed to the private CLIP render
 // (rich dx-* bodyHtml).
@@ -136,7 +136,7 @@ export async function withRenderedCast<T>(
 }
 
 /**
- * Shared readiness path: mock the relay with this one event, open /home,
+ * Shared readiness path: mock the relay with this one event, open /explore,
  * select the row, and wait for the cast body + its images to settle.
  */
 async function openCast(
@@ -153,7 +153,7 @@ async function openCast(
   // (github-pr, whose clip and web-app render had both already succeeded).
   // 'domcontentloaded' + the explicit row/clip-body waits below are the real
   // readiness signal.
-  await page.goto('http://localhost:3000/home', {
+  await page.goto('http://localhost:3000/explore', {
     waitUntil: 'domcontentloaded', timeout: 30_000,
   });
 
@@ -193,7 +193,7 @@ function titleOf(event: NostrEvent): string {
 
 /**
  * Render a cast through the real feed: publish the single event to the local
- * relay, select the row on /home, wait for images to decode, and screenshot
+ * relay, select the row on /explore, wait for images to decode, and screenshot
  * the cast body. Returns its innerText for optional assertions.
  *
  * Pass `context` to render in a warm, extension-loaded browser (see the module

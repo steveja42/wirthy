@@ -70,7 +70,7 @@ export default function NostrLandingPage() {
             >
               Get the extension
             </a>
-            <Link href="/home" className="btn" style={{ textDecoration: 'none' }}>
+            <Link href="/explore" className="btn" style={{ textDecoration: 'none' }}>
               See the feed
             </Link>
           </div>
@@ -125,8 +125,8 @@ export default function NostrLandingPage() {
         <h2 style={h2}>No algorithm on the feed</h2>
         <p style={p}>
           The public feed at{' '}
-          <Link href="/home" style={{ color: 'var(--accent-ink)', textDecoration: 'underline', textUnderlineOffset: 2 }}>
-            wirthy.app/home
+          <Link href="/explore" style={{ color: 'var(--accent-ink)', textDecoration: 'underline', textUnderlineOffset: 2 }}>
+            wirthy.app/explore
           </Link>{' '}
           shows what people cast. Filter it by signal level, qualifiers, category, or the people
           you follow; narrow it to unread, or search it. There is no ranking, no curation and no
@@ -139,7 +139,7 @@ export default function NostrLandingPage() {
           post you valued — so praising good work can mean more than a click.
         </p>
         <p style={p}>
-          <strong>Voting.</strong> Agree or disagree with someone else&apos;s assessment — turning
+          <strong>Voting.</strong>{' '}Agree or disagree with someone else&apos;s assessment — turning
           one reader&apos;s rating into a shared sense of whose judgement is worth trusting.
         </p>
 
@@ -159,7 +159,7 @@ export default function NostrLandingPage() {
         <p style={{ margin: '32px 0 0', paddingTop: 24, borderTop: '1px solid var(--rule)', fontSize: 15 }}>
           Chrome and Chromium browsers; Firefox, Android and iOS are planned. Free, open source,
           no ads.{' '}
-          <Link href="/about" style={{ color: 'var(--accent-ink)', textDecoration: 'underline', textUnderlineOffset: 2 }}>
+          <Link href="/" style={{ color: 'var(--accent-ink)', textDecoration: 'underline', textUnderlineOffset: 2 }}>
             More about the project →
           </Link>
         </p>

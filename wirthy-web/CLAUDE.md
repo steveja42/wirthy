@@ -5,10 +5,14 @@
 Companion web app for the Wirthy Chrome extension, hosted at `wirthy.app`. It is a **read-only** surface — clipping happens only in the extension, never here.
 
 Routes:
-- `/` — client-side redirect to `/home` (static export — no server redirects; query string preserved for `?signin=1`)
-- `/home` — public Home feed (Nostr `kind:1` events tagged `#wirthy`)
-- `/about` — brand/marketing page with HeroBeacon SVG
+- `/` — product landing page (`components/landing/LandingPage.tsx`). Forwards `?signin` / `?settings` / `?popover` to `/explore`, query intact — it used to be a redirect to the feed, and those deep links may still arrive here.
+- `/explore` — public Explore feed (Nostr `kind:1` + `kind:30023` events tagged `#wirthy`). Renamed from `/home` on 2026-10-07; `netlify.toml` 301s `/home` (and `/discerns`) here, and `stripWirthyCta` strips BOTH the `/home` and `/explore` cast CTAs, because published casts are permanent.
+- `/about` — folded into `/`; `netlify.toml` 301s it. The extension's background signing tab opens `/` now.
+- `/c/<id>` — public cast page shell (`app/c/page.tsx` → `out/c.html`). A plain route, NOT `app/c/[id]`: under `output: 'export'`, `next dev` validates the ORIGINAL path against `generateStaticParams` even after a rewrite and 500s. Dev reaches the shell through a dev-only rewrite in `next.config.ts`, and production through a non-forced `/c/* → /c.html` rule. `out/c/__next.*.txt` are RSC payloads, which a forced rule (or a function without `preferStatic`) would shadow.
+- `/p/<npub>` — publisher page: the Explore feed locked to one author. Same one-shell pattern (`app/p/page.tsx` → `out/p.html`). See "Shareable URLs" below.
 - `/clips` — user's private Clips, delivered via extension postMessage bridge
+
+**SEO.** `layout.tsx` sets `metadataBase`, the `%s — Wirthy` title template and the default Open Graph card (`public/og/default.png`, regenerate with `pnpm gen:og`). Do NOT put a `description` inside the layout's `openGraph`: Next would use it for every page's `og:description` instead of falling back to each page's own. Client-component pages get their metadata from a sibling `layout.tsx` that only exports `metadata`. `app/robots.ts` / `app/sitemap.ts` need `dynamic = 'force-static'` under export. `/clips` and the bare `/c` shell are `noindex`. A stale `.next/dev/types/validator.ts` naming a deleted route fails both `pnpm type-check` and `pnpm build`; it is generated, so delete it (`next dev` rewrites it).
 
 ## Tech stack
 
@@ -24,7 +28,7 @@ No CSS framework — all styling is plain CSS custom properties defined in `app/
 ## Key architectural rules
 
 - **No clip creation UI.** The `+` button must never appear. Clipping is the extension's job.
-- **No backend, with one deliberate exception.** Everything is client-side — Nostr relays for the public feed, postMessage bridge for private clips. Two server-side touches: a Netlify reverse-proxy for analytics (see Analytics), which forwards but stores nothing of ours, and **one Netlify Function** at `netlify/functions/feedback.mts` (see Feedback function) — needed because filing a GitHub issue requires holding a token, which a static export cannot do.
+- **No backend, with two deliberate exceptions.** Everything is client-side — Nostr relays for the public feed, postMessage bridge for private clips. Server-side touches: a Netlify reverse-proxy for analytics (see Analytics), which forwards but stores nothing of ours, and **two Netlify Functions**: `netlify/functions/feedback.mts` (see Feedback function), needed because filing a GitHub issue requires holding a token, and `netlify/functions/share-page.mts` (see Shareable URLs), which injects crawler metadata into the cast/publisher shells. It is read-only and stateless, and the pages work without it.
 - **WSS only** for relay connections — never `ws://`.
 - **Sanitize Nostr content** before rendering — never trust raw event content as HTML.
 - **Origin-pin postMessage** on the extension bridge — both sides check `e.origin`.
@@ -42,8 +46,26 @@ Privacy-respecting traffic measurement via **GoatCounter** (cookieless, no PII, 
 - `lib/analytics.ts` — `GOATCOUNTER_ENDPOINT` / `GOATCOUNTER_SCRIPT` / `PROD_HOST` constants, the `window.goatcounter` type, `isAnalyticsHost()`, and the null-safe `countEvent(path, title)` / `countPageview(path)` helpers.
 - `components/analytics/GoatCounter.tsx` (`'use client'`, mounted last in `app/layout.tsx`) — loads the script via `next/script` and reports **SPA route changes** via a `usePathname()` effect (count.js only auto-counts the initial hard load; the effect skips its first run to avoid double-counting).
 - **Hostname gate**: everything is a **no-op unless `window.location.hostname === 'wirthy.app'`** — localhost and Netlify deploy previews never pollute stats. (The gate is resolved in an effect so SSR/first-render return `null` → no hydration mismatch.)
-- **Extension installs**: every "Get the extension" CTA (`app/about/page.tsx`, `components/clips/LibraryEmpty.tsx`) links to `WEB_STORE_URL` (`lib/constants.ts`) and fires `countEvent('install-extension', …)` on click (`sendBeacon`, non-blocking → the navigation still proceeds). One shared event path so the dashboard shows a single installs count. The old `/get-extension` side-load page was removed when the extension shipped to the Chrome Web Store.
+- **Extension installs**: every "Get the extension" CTA (`components/landing/LandingPage.tsx`, `components/clips/LibraryEmpty.tsx`) links to `WEB_STORE_URL` (`lib/constants.ts`) and fires `countEvent('install-extension', …)` on click (`sendBeacon`, non-blocking → the navigation still proceeds). One shared event path so the dashboard shows a single installs count. The old `/get-extension` side-load page was removed when the extension shipped to the Chrome Web Store.
 - **Feedback / donate events**: `feedback-submit` (fired on the *success* transition, not on click, so the stat counts successes), `donate-lightning-copy`, `donate-paypal-complete`.
+
+## Shareable URLs: filters, publishers, casts
+
+**Explore filters live in the URL** (`lib/feed-url.ts`): `/explore?publisher=npub…&signal=worthwhile&category=tech&qualifier=Timeless&q=…&unread=1`. Multi-valued filters REPEAT the param (qualifier labels contain spaces and slashes, and custom ones may contain commas). `ExploreClient` owns the state, `CastFeed` is controlled, and every change is mirrored back with `history.replaceState`, keeping foreign params (`?signin`, `?settings`, `?popover`). Three things are load-bearing:
+- **The URL is read in a mount effect, not a lazy initialiser**, and `useCastFeed(null)` holds off subscribing until it is: the page is prerendered without a location (a lazy read mismatches hydration), and subscribing first would send an unscoped REQ and then replace it. `web-explore-filters` asserts that no unscoped REQ is ever sent.
+- **Authors and a single category narrow the REQ relay-side** (`relayScope` → NIP-01 `authors` + `#l`), because the feed only loads the newest 50 casts and "all posts by X" must not be capped by other people's activity. Signal and qualifier stay client-side: they are `l` labels too, and values within one `#l` filter are ORed. `General` is never sent relay-side, since the parser defaults an untagged cast to it.
+- **A filtered view's canonical is `/explore`**, so filter permutations never compete in search.
+
+**Publisher pages (`/p/<npub>`)** are `ExploreClient` locked to one author (path-read, never written to the query). Any change that drops that author navigates to `/explore` with the remaining filters; a malformed npub falls back to `/explore`.
+
+**Cast pages (`/c/<naddr|note|nevent>`)**, `lib/nostr/cast-ref.ts`: a cast with a long-form companion is addressed by its kind-30023 `naddr` (matches the feed's dedup preference and survives edits); anything else by its `note` id. A kind-1 link whose long-form can be found is upgraded to it and the address bar re-written to the naddr. `fetchCast` lazy-imports the relay pool so the feed, which only builds links, doesn't pull it into prerender. `DetailPanel`'s `shareHref` adds the link action in the feed; `readOnly` hides delete and note editing on the cast page.
+
+**Crawler metadata: `netlify/functions/share-page.mts`** (`lib/share-page.ts` is the pure part). Link-preview bots and most crawlers don't run the client, so the function fetches the cast (or kind-0 profile) from `DEFAULT_RELAYS`, then injects title, description, Open Graph, canonical, robots and a short `#ssr-cast` summary into the exported shell. Rules:
+- **Index only a cast with a take** (a note or a Signal), never the e2e test author. The summary carries the publisher's contribution plus a ≤300-char excerpt from the summary fields, **never the captured article markdown** (someone else's content would read as scraped). Publisher pages preview but stay `noindex`. Both shells default to `noindex`, so a function failure can't index a generic page.
+- **Everything interpolated is event text**: `escapeHtml` everywhere, `<` escaped in JSON-LD, and **function replacers** in `String.replace` (a string replacement expands `$&` / `$'` from a title).
+- **`preferStatic: true`** so `out/c/__next.*.txt` payloads are served as files. Any failure serves the unmodified shell with a 60s CDN cache; caches are 24h for a `note` (immutable) and 1h for an `naddr` / profile.
+- React tolerates the injected head tags, and the placeholder is `suppressHydrationWarning` + empty `dangerouslySetInnerHTML`, so the injected summary hydrates without a mismatch. This was verified in Chromium against the real export.
+- The production relays held **zero** `#t wirthy` casts on 2026-10-07, so there was nothing to index at launch.
 
 ## Feedback function
 
@@ -117,15 +139,17 @@ app/
   icon.svg             ← site icon (Next file convention); cream master, generated
   favicon.ico          ← 16/32/48/256, generated
   apple-icon.png       ← 180px, generated
-  page.tsx             ← root: client redirect to /home
-  home/page.tsx    ← feed route (mounts HomeClient)
-  home/HomeClient.tsx ← client: feed + popover + modal
-  about/page.tsx       ← HeroBeacon + philosophy copy
+  page.tsx             ← root: landing page shell (metadata + JSON-LD)
+  explore/page.tsx     ← feed route (mounts ExploreClient)
+  explore/ExploreClient.tsx ← client: feed + popover + modal
+  c/page.tsx           ← public cast page shell (served for every /c/<id>)
+  robots.ts, sitemap.ts ← static SEO files
   clips/page.tsx
   feedback/page.tsx    ← feedback form + donate (Lightning / PayPal)
   not-found.tsx        ← 404
 components/
   brand/               ← MiniBeacon.tsx, HeroBeacon.tsx (do not modify SVGs)
+  landing/             ← LandingPage (/) — every sentence traces to a claims.md ID
   chrome/              ← TopBar.tsx, SettingsModal.tsx
   feed/                ← CastFeed, ClipRow, DetailPanel, FilterStrip
   glyph/               ← Glyph, GlyphBars, GlyphRadial, GlyphLetter

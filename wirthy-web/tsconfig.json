@@ -37,5 +37,5 @@
   // The function's test is excluded here for the same reason: it imports the .mts handler
   // directly, so it needs the same extension allowance. Vitest resolves it fine at runtime,
   // and tsconfig.test.json type-checks it.
-  "exclude": ["node_modules", "netlify/functions", "tests/feedback-function.test.ts"]
+  "exclude": ["node_modules", "netlify/functions", "tests/feedback-function.test.ts", "tests/share-page.test.ts"]
 }

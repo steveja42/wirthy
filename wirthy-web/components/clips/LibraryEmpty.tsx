@@ -39,7 +39,7 @@ export default function LibraryEmpty() {
         >
           Get the Extension
         </a>
-        <Link href="/about" className="btn ghost">
+        <Link href="/" className="btn ghost">
           Learn more about sovereignty →
         </Link>
       </div>

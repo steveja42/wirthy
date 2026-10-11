@@ -80,7 +80,7 @@ export default function FeedbackPage() {
         <DonateSection />
 
         <p style={{ fontFamily: 'var(--serif)', fontSize: 14.5, color: 'var(--ink-2)', lineHeight: 1.6, margin: '8px 0 0' }}>
-          Not sure what Wirthy is? Read <Link href="/about" style={linkStyle}>what it is and why it works this way →</Link>
+          Not sure what Wirthy is? Read <Link href="/" style={linkStyle}>what it is and why it works this way →</Link>
         </p>
       </section>
 

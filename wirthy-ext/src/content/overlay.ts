@@ -2292,7 +2292,7 @@ ${themeVarsBlock(this.effectiveTheme)}
     const libraryBtn = clipId
       ? `<button class="open-library-btn">View in My Clips →</button>` : '';
     const homeBtn = eventId
-      ? `<button class="open-home-btn">View on Home →</button>` : '';
+      ? `<button class="open-home-btn">View on Explore →</button>` : '';
     const links = [libraryBtn, homeBtn].filter(Boolean).join('<br>');
     const glyph = icon ? `<span class="status-icon">${icon}</span>` : '✓';
     loading.innerHTML = `<div class="success">${glyph} ${this.escapeHtml(message)}${links ? `<br>${links}` : ''}<br><button class="dismiss-btn">Dismiss</button></div>`;

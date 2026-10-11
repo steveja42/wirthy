@@ -24,6 +24,10 @@ interface DetailPanelProps {
   // Right-click on the caster label. Absent on call sites with no follow
   // concept (e.g. the private Library, which has no public authorPubkey).
   onAuthorContextMenu?: (pubkey: string, x: number, y: number) => void;
+  // The post's own shareable page (/c/<id>), shown as a link action. Public casts only.
+  shareHref?: string | null;
+  // Read-only views (a single public cast): no delete, and the note is shown, not editable.
+  readOnly?: boolean;
 }
 
 function domainOf(url: string): string {
@@ -296,7 +300,7 @@ function renderTextWithBreaks(text: string, imageUrls?: Set<string>): React.Reac
   });
 }
 
-export default function DetailPanel({ clip, author, onDelete, onUpdateNote, bodies, onBodyFetched, onAuthorContextMenu }: DetailPanelProps) {
+export default function DetailPanel({ clip, author, onDelete, onUpdateNote, bodies, onBodyFetched, onAuthorContextMenu, shareHref, readOnly = false }: DetailPanelProps) {
   const [isFullscreen, setIsFullscreen] = useState(false);
   // Click-to-play: delegated on the clip body. The body arrives ASYNCHRONOUSLY
   // (requestClipBody fetches it from the extension after first paint), so the
@@ -396,19 +400,29 @@ export default function DetailPanel({ clip, author, onDelete, onUpdateNote, bodi
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
           <h2 className="detail-title" style={{ flex: 1, margin: 0 }}>{capture.title}</h2>
           <div className="detail-actions">
-            <button
-              className="btn-detail-delete"
-              onClick={() => onDelete(capture.id)}
-              title="Delete clip"
-              aria-label="Delete clip"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="3 6 5 6 21 6" />
-                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                <path d="M10 11v6M14 11v6" />
-                <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-              </svg>
-            </button>
+            {shareHref && (
+              <a className="btn-detail-link" href={shareHref} title="Open this post’s own page (a link you can share)" aria-label="Open this post’s page">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.5 1.5" />
+                  <path d="M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.5-1.5" />
+                </svg>
+              </a>
+            )}
+            {!readOnly && (
+              <button
+                className="btn-detail-delete"
+                onClick={() => onDelete(capture.id)}
+                title="Delete clip"
+                aria-label="Delete clip"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="3 6 5 6 21 6" />
+                  <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                  <path d="M10 11v6M14 11v6" />
+                  <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                </svg>
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -461,10 +475,19 @@ export default function DetailPanel({ clip, author, onDelete, onUpdateNote, bodi
         </div>
       )}
 
-      <div className="detail-section detail-note-row">
-        <div className="detail-section-label">Note</div>
-        <NoteEditor note={capture.note} clipId={capture.id} onUpdateNote={onUpdateNote} />
-      </div>
+      {readOnly ? (
+        capture.note && (
+          <div className="detail-section detail-note-row">
+            <div className="detail-section-label">Note</div>
+            <p style={{ margin: 0, fontFamily: 'var(--sans)', fontSize: 13.5, lineHeight: 1.55, color: 'var(--ink-2)' }}>{capture.note}</p>
+          </div>
+        )
+      ) : (
+        <div className="detail-section detail-note-row">
+          <div className="detail-section-label">Note</div>
+          <NoteEditor note={capture.note} clipId={capture.id} onUpdateNote={onUpdateNote} />
+        </div>
+      )}
 
       {(() => {
         const cached = bodies.get(capture.id);

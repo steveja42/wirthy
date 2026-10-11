@@ -1,4 +1,4 @@
-// Tracks which Home-sidebar sections are expanded. Persisted to localStorage so
+// Tracks which Explore-sidebar sections are expanded. Persisted to localStorage so
 // the layout the user settled on survives reloads.
 // Modelled on useReadCasts: a module-level snapshot + listeners driving
 // useSyncExternalStore, with a server snapshot that matches the hydrating client render.

@@ -1,5 +1,5 @@
 // A sidebar section with a clickable header that expands/collapses its body.
-// Used by the Home sidebar for every section (View, Following, Publishers,
+// Used by the Explore sidebar for every section (View, Following, Publishers,
 // Signal, Qualifiers, Category). The body is conditionally rendered rather than
 // height-animated — the sections are short and nothing here needs a measured height.
 

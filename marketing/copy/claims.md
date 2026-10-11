@@ -38,7 +38,7 @@ Verified against source 2026-09-02, extension v0.2.3.
 | C-12 | Publishes a kind-1 note, plus a companion NIP-23 long-form (kind 30023) note for captures with an article body | `wirthy-ext/src/shared/nostr/events.ts` | A |
 | C-13 | Sign in with a NIP-07 browser extension, a NIP-46 bunker, or a local key encrypted with a PIN — or use it with no account at all, clip-only | auth modes, `wirthy-ext/src/shared/nostr/auth.ts` | A, B |
 | C-14 | No account required to start | guest mode, onboarding | A, B |
-| C-15 | The public feed at wirthy.app can be filtered by signal level, qualifier, category, or the people you follow, narrowed to unread, and searched | `wirthy-web/components/feed/CastFeed.tsx` | A, B |
+| C-15 | The public feed at wirthy.app/explore can be filtered by signal level, qualifier, category, or the people you follow, narrowed to unread, and searched | `wirthy-web/components/feed/CastFeed.tsx` | A, B |
 | C-16 | Export your library as JSON; import from JSON or from Evernote `.enex` files | `wirthy-web/components/clips/ImportDialog.tsx`, `SettingsModal.tsx` | B |
 | C-17 | No analytics in the extension. The website uses GoatCounter — cookieless, no personal data | `marketing/store-listing/STORE-SUBMISSION.md`, `/privacy` | A, B |
 | C-18 | The evaluation travels as NIP-32 labels, so other Nostr clients can read it | `baseEvaluationTags` in `events.ts` | A |
@@ -105,7 +105,7 @@ built"), per the voice rules in `../CLAUDE.md`.
 - **Firefox support.**
 - **Android and iOS apps.**
 
-The `/about` page's "What's planned" section is the canonical public wording for the first two.
+The landing page's "What's planned" section (`wirthy-web/components/landing/LandingPage.tsx`, served at `/`) is the canonical public wording for the first two.
 
 ---
 
@@ -122,7 +122,7 @@ The `/about` page's "What's planned" section is the canonical public wording for
 
 Governed by `../CLAUDE.md`, repeated here because this file is the one people actually open:
 
-- A published evaluation is a **post**; the public feed is **Home**.
+- A published evaluation is a **post**; the public feed is **Explore** (`wirthy.app/explore`).
 - A **clip** is private and local. A **cast** is public and on Nostr. Never blur them.
 - **The user evaluates, not the extension.** Never "clips pages and rates them" — it reads as
   automated scoring and invites the "isn't this just AI ranking?" misread from precisely the

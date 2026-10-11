@@ -1,6 +1,6 @@
 {
   "name": "wirthy-web",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -11,7 +11,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "gen:qr": "node scripts/gen-lightning-qr.mjs"
+    "gen:qr": "node scripts/gen-lightning-qr.mjs",
+    "gen:og": "node scripts/gen-og.mjs"
   },
   "dependencies": {
     "dompurify": "3.4.2",

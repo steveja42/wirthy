@@ -157,7 +157,7 @@ export default function ClipperLandingPage() {
         <p style={{ margin: '32px 0 0', paddingTop: 24, borderTop: '1px solid var(--rule)', fontSize: 15 }}>
           Chrome and Chromium browsers; Firefox, Android and iOS are planned. Free, open source,
           no ads.{' '}
-          <Link href="/about" style={{ color: 'var(--accent-ink)', textDecoration: 'underline', textUnderlineOffset: 2 }}>
+          <Link href="/" style={{ color: 'var(--accent-ink)', textDecoration: 'underline', textUnderlineOffset: 2 }}>
             More about the project →
           </Link>
         </p>

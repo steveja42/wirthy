@@ -35,7 +35,7 @@ only is how the two drift.
 Reproduced from `CLAUDE.md` rather than linked, because a strategy doc that only links to its
 constraints gets read without them. `copy/banned-phrases.md` is the operational version.
 
-- **A published evaluation is a "post"; the public feed is Home.** Standard call to action: "View more at
+- **A published evaluation is a "post"; the public feed is Explore.** Standard call to action: "View more at
   wirthy.app".
 - **Clip = private and local. Cast = public and on Nostr.** Never blur them; the distinction is
   the product.
@@ -183,7 +183,7 @@ Phase 4 fires on a condition, not a calendar. **If the prerequisites are never r
 |---|---|---|
 | Sessions, top pages | GoatCounter (cookieless, website only) | Weekly |
 | Referrer breakdown | GoatCounter — the only channel attribution available | Per campaign action |
-| `/home` vs `/clips` split | GoatCounter — proxies discovery-reader vs. installed-user | Monthly |
+| `/explore` vs `/clips` split (`/home` before 2026-10-07) | GoatCounter — proxies discovery-reader vs. installed-user | Monthly |
 | Installs, weekly users | Web Store dashboard (weekly-users lags installs) | Weekly |
 | Impressions → installs | Web Store dashboard — the only true conversion rate | Monthly |
 | Ratings and reviews | Web Store listing — also the only qualitative feedback with volume | Weekly |

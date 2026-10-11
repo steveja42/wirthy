@@ -303,7 +303,7 @@ export function buildWirthySnippet(evaluation: Evaluation): string {
 // The web-app CTA appended to the end of every cast's content, visible in
 // third-party Nostr clients. Not sentinel-wrapped — we WANT it shown everywhere,
 // including wirthy's own feed is fine (it's a harmless self-link).
-const WIRTHY_CTA = 'View more at https://wirthy.app/home';
+const WIRTHY_CTA = 'View more at https://wirthy.app/explore';
 
 // Prepend the attribution snippet + append the web-app CTA to event content.
 function withSnippet(content: string, snippet?: string): string {

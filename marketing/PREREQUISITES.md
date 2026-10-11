@@ -12,6 +12,10 @@ Verified 2026-09-02.
 
 ## (a) No landing page to send campaign traffic to
 
+> **Resolved 2026-10-07.** `/` is now the product landing page (`wirthy-web/components/landing/LandingPage.tsx`),
+> `/about` was folded into it (301), and the feed moved to `/explore`. The root still forwards
+> `?signin` / `?settings` / `?popover` to `/explore`. The rest of this section is the original analysis.
+
 **There is no URL that explains the product to someone who has never heard of it.** `/about` is
 the closest thing, but nothing routes to it by default: `wirthy-web/app/page.tsx` redirects
 `/` to `/home`, so anyone arriving at the bare domain lands in a feed of strangers' clips.
@@ -70,7 +74,9 @@ if the attribution turns out to be worth the pages. What `/` does can stay as it
 
 A first-time visitor with no Nostr identity and no follows sees whatever exists globally under
 `{ kinds: [1, 30023], '#t': ['wirthy'] }` — the filter in `wirthy-web/lib/nostr/feed.ts`.
-Today that is sparse.
+Today that is sparse — measured 2026-10-07, the three production relays (`relay.primal.net`,
+`nos.lol`, `relay.snort.social`) returned **zero** `#t wirthy` events, and zero under the
+pre-rename `#t discerned`, while answering other queries normally. The live Explore feed is empty.
 
 This is the classic discovery-product cold start, and it compounds (a): a visitor arriving from
 a link lands on an unexplained page that is also nearly empty. That combination is a worse
@@ -83,7 +89,7 @@ cadence from the maintainer npub. Each cast is simultaneously a product demonstr
 inventory. Nothing else on the plan addresses this at zero cost, which is the main reason A1
 leads Track A now that the directory work is finished.
 
-A fuller resolution would be an empty/near-empty state on `/home` that explains what the
+A fuller resolution would be an empty/near-empty state on `/explore` that explains what the
 feed is and what a post looks like, rather than rendering a short list with no framing. Not
 proposed here — flagging that the empty state is a marketing surface, not just a UI edge case.
 
@@ -114,7 +120,7 @@ or note in it that it is a snapshot rather than the source of truth.
 
 | # | Blocker | Severity | Effort |
 |---|---|---|---|
-| (a) | No landing page for campaign links (any route; needn't be `/`) | Blocking for Show HN / Product Hunt | Small; routing + existing copy |
+| (a) | No landing page for campaign links (any route; needn't be `/`) — **resolved 2026-10-07** | ~~Blocking for Show HN / Product Hunt~~ | Done |
 | (b) | Empty-feed cold start | Blocking for Show HN / Product Hunt | Ongoing; mitigated by A1 |
 | (c) | UI-TEXT.md drift | Non-blocking; weakens claim proofs | Small |
 

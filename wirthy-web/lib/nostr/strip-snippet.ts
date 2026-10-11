@@ -38,12 +38,15 @@ export function stripWirthySnippet(content: string): string {
 // Unlike the snippet it is deliberately NOT sentinel-wrapped (other clients must
 // see it as ordinary text), so this matches it literally — only at the very end
 // of the content, where the writer puts it.
-const WIRTHY_CTA = 'View more at https://wirthy.app/home';
+const WIRTHY_CTA = 'View more at https://wirthy.app/explore';
+// Casts published before the /home → /explore rename carry this one, and casts are permanent.
+const LEGACY_WIRTHY_CTA = 'View more at https://wirthy.app/home';
 
 // Remove the trailing web-app CTA. Idempotent; a no-op when absent (legacy casts
 // / non-wirthy events), and it never touches a mid-body occurrence — the
 // writer only ever appends it.
 export function stripWirthyCta(content: string): string {
-  const pattern = new RegExp(`\\n{0,2}${escapeRegExp(WIRTHY_CTA)}\\s*$`);
+  const ctas = [WIRTHY_CTA, LEGACY_WIRTHY_CTA].map(escapeRegExp).join('|');
+  const pattern = new RegExp(`\\n{0,2}(?:${ctas})\\s*$`);
   return content.replace(pattern, '');
 }

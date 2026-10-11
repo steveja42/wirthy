@@ -242,15 +242,19 @@ async function resolveBaseUrl(): Promise<string> {
   return localTabs.length > 0 ? WIRTHY_BASE_URLS[1] : WIRTHY_BASE_URLS[0];
 }
 
-// Home feed — match the /home page with optional query/hash, but NOT
-// other subpaths like /clips or /about.
-const HOME_URL_PATTERNS = [
+// Explore feed — match the /explore page with optional query/hash, but NOT
+// other subpaths like /clips. /home is its pre-rename path (now a 301), kept
+// so a tab still open on it is reused rather than duplicated.
+const EXPLORE_URL_PATTERNS = [
+  'https://wirthy.app/explore',
+  'https://wirthy.app/explore?*',
+  'https://wirthy.app/explore#*',
+  'http://localhost:3000/explore',
+  'http://localhost:3000/explore?*',
+  'http://localhost:3000/explore#*',
   'https://wirthy.app/home',
   'https://wirthy.app/home?*',
   'https://wirthy.app/home#*',
-  'http://localhost:3000/home',
-  'http://localhost:3000/home?*',
-  'http://localhost:3000/home#*',
 ];
 
 // Feedback form — the web app's /feedback page. No #* variants: the page has no hash routing.
@@ -265,7 +269,7 @@ const FEEDBACK_URL_PATTERNS = [
  * Shared opener for web-app deep links: reuse a matching tab if one is open (activating
  * it and focusing its window), otherwise create one.
  *
- * Extracted from openHomeTab so a second deep-link destination doesn't mean a second
+ * Extracted from openExploreTab so a second deep-link destination doesn't mean a second
  * copy of this reuse/focus/navigate-only-when-deep-linking logic — it's subtle enough
  * that divergent copies would drift. openLibraryTab deliberately stays separate: it
  * soft-navigates an already-open tab via NAVIGATE_TO_CLIP to preserve React state,
@@ -312,9 +316,9 @@ async function openWebAppTab(path: string, query: string, patterns: string[]): P
   }
 }
 
-async function openHomeTab(autoSignin?: boolean, openSettings?: boolean): Promise<void> {
+async function openExploreTab(autoSignin?: boolean, openSettings?: boolean): Promise<void> {
   const query = autoSignin ? '?signin=1' : openSettings ? '?settings=1' : '';
-  await openWebAppTab('/home', query, HOME_URL_PATTERNS);
+  await openWebAppTab('/explore', query, EXPLORE_URL_PATTERNS);
 }
 
 /**
@@ -770,9 +774,9 @@ async function handleMessage(message: BackgroundMessage, senderTabId?: number): 
 
     case 'OPEN_HOME':
       // message.eventId is accepted for a future deep-link to the cast; for now we
-      // open the bare home feed (the just-cast event may not have propagated
+      // open the bare Explore feed (the just-cast event may not have propagated
       // to the subscribed relays yet, so deep-linking would risk a transient miss).
-      openHomeTab(message.autoSignin, message.openSettings).catch(() => {});
+      openExploreTab(message.autoSignin, message.openSettings).catch(() => {});
       return { success: true };
 
     case 'OPEN_FEEDBACK':
@@ -1939,7 +1943,7 @@ async function waitForContentScript(tabId: number, timeoutMs = 5000): Promise<vo
 // Resolve a tab on the wirthy origin to route NIP-07 signing through.
 // Order: (1) reuse our cached signing tab if still valid; (2) reuse any wirthy
 // tab the user already has open, leaving it untouched; (3) open our own
-// background tab on the lightweight /about route and wait for its content script.
+// background tab on the landing page (/) and wait for its content script.
 //
 // Case 3 opens a normal background TAB in the user's current window (not a
 // separate chrome.windows.create window): NIP-07 wallets render their approval
@@ -1993,7 +1997,7 @@ async function resolveSigningTab(focusSigningTab = false): Promise<number> {
   // tab — for user-initiated signs (casts) background is fine because those
   // normally hit case (2) reuse on later invocations.
   const base = await resolveBaseUrl();
-  const tab = await chrome.tabs.create({ url: `${base}/about`, active: focusSigningTab });
+  const tab = await chrome.tabs.create({ url: `${base}/`, active: focusSigningTab });
   const tabId = tab.id;
   if (tabId === undefined) throw new Error('Failed to open signing tab');
   await waitForContentScript(tabId);
@@ -2098,7 +2102,7 @@ async function signEventViaWebApp(
     // approved "just this time" rather than "forever"; this path handles every
     // such cold prompt, not just the first.)
     const base = await resolveBaseUrl();
-    const tab = await chrome.tabs.create({ url: `${base}/`, active: true });
+    const tab = await chrome.tabs.create({ url: `${base}/explore`, active: true });
     if (tab.id === undefined) throw new Error('Failed to open wirthy tab');
     tabId = tab.id;
     if (tab.windowId !== undefined) {

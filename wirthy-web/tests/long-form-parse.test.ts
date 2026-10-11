@@ -12,7 +12,8 @@ import {
   SNIPPET_SENTINEL_CLOSE,
 } from '@/lib/nostr/strip-snippet';
 
-const CTA = 'View more at https://wirthy.app/home';
+const CTA = 'View more at https://wirthy.app/explore';
+const LEGACY_CTA = 'View more at https://wirthy.app/home';
 
 const SK = generateSecretKey();
 const PK = getPublicKey(SK);
@@ -41,6 +42,10 @@ describe('stripWirthySnippet', () => {
 describe('stripWirthyCta', () => {
   it('removes the trailing CTA and the blank line before it', () => {
     expect(stripWirthyCta(`Real body.\n\n${CTA}`)).toBe('Real body.');
+  });
+
+  it('removes the pre-rename /home CTA that older casts carry', () => {
+    expect(stripWirthyCta(`Real body.\n\n${LEGACY_CTA}`)).toBe('Real body.');
   });
 
   it('is a no-op when the CTA is absent (legacy casts / foreign events)', () => {

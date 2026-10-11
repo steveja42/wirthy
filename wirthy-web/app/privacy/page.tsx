@@ -10,7 +10,7 @@ import Link from 'next/link';
 const LAST_UPDATED = '30 July 2026';
 
 export const metadata: Metadata = {
-  title: 'Privacy Policy · Wirthy',
+  title: 'Privacy Policy',
   description:
     'How the Wirthy browser extension and website handle your data: local-first storage, no accounts, no server, no tracking in the extension.',
 };

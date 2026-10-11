@@ -58,7 +58,7 @@ test.describe('public feed — mocked Nostr relay', () => {
       });
     });
 
-    await page.goto('/home');
+    await page.goto('/explore');
     // The feed renders one <article class="clip"> per kind:1 event. Scope to
     // that container — the title shows up in multiple child elements (.clip-title
     // and .clip-excerpt/.clip-note), so a page-wide getByText would be ambiguous.

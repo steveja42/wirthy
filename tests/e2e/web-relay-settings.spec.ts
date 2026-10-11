@@ -110,7 +110,7 @@ test.describe('web settings — relay management', () => {
   test('?settings=1 opens the settings panel directly (extension deep-link)', async ({ page }) => {
     // What the extension overlay's "Manage relays" button navigates to. Landing
     // on the feed and making the user find the gear is the bug this prevents.
-    await page.goto('/home?settings=1');
+    await page.goto('/explore?settings=1');
     await page.waitForLoadState('networkidle');
 
     await expect(page.locator('.modal')).toBeVisible();

@@ -117,9 +117,92 @@ body.style-studio .search              { border-radius: 8px; }
 .hero-cta { display: flex; gap: 10px; flex-wrap: wrap; }
 @media (max-width: 980px) {
   .hero { grid-template-columns: 1fr; }
-  .hero-art { min-height: 280px; border-right: 0; border-bottom: 1px solid var(--rule); }
+  /* Copy first when stacked, so the headline and install CTA are above the fold. */
+  .hero-copy { order: -1; }
+  .hero-art { min-height: 280px; border-right: 0; border-top: 1px solid var(--rule); }
   .hero-copy { padding: 40px 28px; }
   .hero-title { font-size: 48px; }
+}
+
+/* ============ Cast page (/c/<id>) ============ */
+.cast-page {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 24px 16px 64px;
+}
+.cast-page .detail { border-left: 0; overflow-y: visible; }
+/* The share-page function's crawler summary; people see it only until the live cast loads. */
+#ssr-cast article { font-family: var(--serif); color: var(--ink-2); padding: 8px 0 24px; }
+#ssr-cast h1 { font-size: 28px; font-weight: 500; color: var(--ink); margin: 0 0 8px; }
+#ssr-cast p { margin: 0 0 8px; }
+#ssr-cast blockquote { margin: 12px 0; padding-left: 14px; border-left: 3px solid var(--rule); }
+#ssr-cast a { color: var(--accent-ink); }
+#ssr-cast:not(:empty) + .cast-page-status { display: none; }
+.cast-page-byline {
+  font-family: var(--sans);
+  font-size: 13px;
+  color: var(--ink-3);
+  padding: 0 0 12px;
+  border-bottom: 1px solid var(--rule);
+}
+.cast-page-byline a { color: var(--accent-ink); text-decoration: none; }
+.cast-page-byline a:hover { text-decoration: underline; }
+.cast-page-status {
+  font-family: var(--serif);
+  color: var(--ink-2);
+  padding: 48px 0;
+  text-align: center;
+}
+.cast-page-status h1 { font-size: 28px; font-weight: 500; color: var(--ink); margin: 0 0 10px; }
+.cast-page-status p { margin: 0 0 20px; }
+.cast-page-cta {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+  margin-top: 32px;
+  padding: 20px 24px;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  background: var(--paper-2);
+  font-family: var(--serif);
+  font-size: 16px;
+  color: var(--ink-2);
+}
+.cast-page-cta p { margin: 0; flex: 1 1 280px; }
+
+/* ============ Landing feature grid (/) ============ */
+.landing-features {
+  display: grid;
+  /* Fixed tracks, not auto-fit: six features must land as even rows (3+3 / 2+2+2). */
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--rule);
+  border-bottom: 1px solid var(--rule);
+}
+.landing-feature {
+  background: var(--paper);
+  padding: 32px 32px 36px;
+}
+.landing-feature h2 {
+  font-family: var(--serif);
+  font-size: 22px;
+  font-weight: 500;
+  letter-spacing: -0.015em;
+  color: var(--ink);
+  margin: 0 0 10px;
+}
+.landing-feature p {
+  font-family: var(--serif);
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--ink-2);
+  margin: 0;
+  text-wrap: pretty;
+}
+@media (max-width: 980px) {
+  .landing-features { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 640px) {
+  .landing-features { grid-template-columns: 1fr; }
+  .landing-feature { padding: 24px 20px 28px; }
 }
 
 /* Hero beacon animation — traveling dashes read as a signal moving outward along each
@@ -213,7 +296,7 @@ a { color: inherit; }
   font-size: 22px;
   font-weight: 600;
   letter-spacing: -0.01em;
-  /* The mark is an <a> to /home, so pin the colour — otherwise the UA link
+  /* The mark is an <a> to /explore, so pin the colour — otherwise the UA link
      blue overrides the wordmark's ink. */
   color: var(--ink);
   text-decoration: none;
@@ -435,7 +518,7 @@ a { color: inherit; }
 }
 .search input::placeholder { color: var(--ink-4); }
 /* Holds the topbar's middle grid column on routes with nothing to search
-   (/about, /feedback) so the nav rail doesn't shift. */
+   (/, /feedback) so the nav rail doesn't shift. */
 .search-spacer { min-width: 0; }
 .search kbd {
   font-family: var(--mono); font-size: 10px;
@@ -3486,7 +3569,8 @@ a { color: inherit; }
   margin-left: auto;
   flex-shrink: 0;
 }
-.btn-detail-delete {
+.btn-detail-delete,
+.btn-detail-link {
   background: transparent;
   border: 1px solid var(--rule);
   color: var(--ink-3);
@@ -3499,6 +3583,10 @@ a { color: inherit; }
   cursor: pointer;
   transition: color 120ms, border-color 120ms, background 120ms;
   flex-shrink: 0;
+}
+.btn-detail-link:hover {
+  color: var(--accent-ink);
+  border-color: var(--accent-ink);
 }
 .btn-detail-delete:hover {
   color: oklch(0.45 0.18 25);
@@ -3586,7 +3674,7 @@ a { color: inherit; }
 .btn-note-cancel:hover { border-color: var(--ink-3); }
 
 /* ── Feedback + donate (/feedback) ──────────────────────────────────────────
-   The page chrome is inline-styled (matching /about); these classes cover
+   The page chrome is inline-styled (matching /l/clipper); these classes cover
    the form controls, where hover/focus/disabled/checked states make inline styles
    untenable. Reused from elsewhere in this file: .settings-section,
    .settings-section-label, .settings-hint, .relay-error, .note-textarea, .btn. */

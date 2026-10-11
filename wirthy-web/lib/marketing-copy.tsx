@@ -1,5 +1,5 @@
-// Shared marketing copy for the first-visit popover and the About page hero.
-// Edit here to change the pitch in both places at once.
+// Shared marketing copy for the first-visit popover on /explore.
+// The landing page (/) carries its own, longer hero; keep the two consistent.
 
 import { WEB_STORE_URL } from '@/lib/constants';
 

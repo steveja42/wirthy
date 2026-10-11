@@ -168,7 +168,7 @@ test('embedded-tweet: capture article with widgets.js tweets, render in clips, s
     console.log('[probe] Artifacts written:');
     console.log('  test-output/live-visual-run/embed--1-source.png  (source article screenshot)');
     console.log('  test-output/live-visual-run/embed--2-clip.png    (rendered clip-body in /clips)');
-    console.log('  test-output/live-visual-run/embed--3-cast.png    (rendered PUBLIC cast in /home)');
+    console.log('  test-output/live-visual-run/embed--3-cast.png    (rendered PUBLIC cast in /explore)');
     console.log('  test-output/embed-card-N.png                     (close-up of each tweet card)');
     console.log('  test-output/embed-capture.json                   (raw capture payload)');
   } finally {
