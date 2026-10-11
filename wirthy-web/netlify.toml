@@ -115,15 +115,7 @@
   to = "/"
   status = 301
 
-# Public cast pages: one exported shell (out/c.html) serves every /c/<id>; the client reads
-# the id from the path. NOT forced — out/c/__next.*.txt are real RSC payload files.
-[[redirects]]
-  from = "/c/*"
-  to = "/c.html"
-  status = 200
-
-# Publisher pages (/p/<npub>) — same one-shell pattern.
-[[redirects]]
-  from = "/p/*"
-  to = "/p.html"
-  status = 200
+# /c/<id> and /p/<npub> are served by netlify/functions/share-page.mts, which loads the
+# exported shell (out/c.html, out/p.html) itself. Do NOT add a `/c/* → /c.html` rewrite here:
+# with the function's preferStatic, a rewrite onto an existing file counts as static and the
+# function never runs (measured on the live site 2026-10-11).
