@@ -6,8 +6,8 @@ snapshot of what was once submitted.
 
 | File | Directory | Submitted via | Status |
 |---|---|---|---|
-| `nostrapps.toml` | [nostrapps.com](https://nostrapps.com) | PR to `apps.toml` in the site's repo | **submitted** |
-| `awesome-nostr-nostr.net.md` | [awesome-nostr](https://github.com/aljazceru/awesome-nostr) → [nostr.net](https://nostr.net) | PR adding a README line | **listed** — [PR #723](https://github.com/aljazceru/awesome-nostr/pull/723) merged |
+| `nostrapps.toml` | [nostrapps.com](https://nostrapps.com) | patch to `apps.toml` via nostr git (gitworkshop.dev), NOT GitHub | **submitted 2026-10-11**, unmerged; repo has had no commit since 2026-03-11 |
+| `awesome-nostr-nostr.net.md` | [awesome-nostr](https://github.com/aljazceru/awesome-nostr) → [nostr.net](https://nostr.net) | PR adding a README line | **listed as Discerned** (#723); rename PR [#756](https://github.com/aljazceru/awesome-nostr/pull/756) open |
 
 ## NIP-89 (kind 31990) — deliberately NOT published
 

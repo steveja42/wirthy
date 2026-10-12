@@ -1,7 +1,8 @@
 # awesome-nostr (nostr.net)
 
-**Status:** listed — [PR #723](https://github.com/aljazceru/awesome-nostr/pull/723) merged;
-link fix [PR #725](https://github.com/aljazceru/awesome-nostr/pull/725) open
+**Status:** listed as Discerned — [PR #723](https://github.com/aljazceru/awesome-nostr/pull/723) merged;
+#725 (web app as main link) closed: the maintainer wants the REPO as main link, live site underneath.<br>
+Rename to Wirthy: [PR #756](https://github.com/aljazceru/awesome-nostr/pull/756) open (2026-10-11), submitted with the web app as the main link and the repo as a sub-bullet, at the user's direction — expect the maintainer to ask for the swap.
 **Section:** Clients → Other
 **Repo:** https://github.com/aljazceru/awesome-nostr
 **Rendered at:** https://nostr.net
