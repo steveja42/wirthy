@@ -104,6 +104,26 @@ describe('og:image hero fallback (withThumbnailFallback)', () => {
       'stale same-host canonical still suppresses the hero').toHaveLength(0);
   });
 
+  it('rejects a STALE og:url even when the same-host canonical is current', async () => {
+    // YouTube Shorts rewrites canonical on scroll but leaves og:url + og:image
+    // on the FIRST Short, so the clip carried the wrong video's picture.
+    loadFixture(FIXTURE, PAGE_URL);
+    document.head.querySelectorAll('link[rel="canonical"], meta[property="og:url"]').forEach(el => el.remove());
+    const link = document.createElement('link');
+    link.rel = 'canonical';
+    link.href = PAGE_URL;
+    document.head.appendChild(link);
+    const og = document.createElement('meta');
+    og.setAttribute('property', 'og:url');
+    og.content = 'https://www.msn.com/de-de/nachrichten/other/ein-voellig-anderer-artikel/ar-BB99zzzz';
+    document.head.appendChild(og);
+
+    const cap = await captureContext('article', { smartArticleDetection: false, stripInlineStyles: false });
+
+    expect((cap.bodyHtml ?? '').match(/<img[^>]*>/gi) ?? [],
+      'stale og:url suppresses the hero').toHaveLength(0);
+  });
+
   it('does NOT inject a first-<img> GUESS when the page declares no og:image', async () => {
     // getPageThumbnail falls back to the first <img> on the page when there is
     // no og:image. That guess is fine for a library-row thumbnail but is NOT a

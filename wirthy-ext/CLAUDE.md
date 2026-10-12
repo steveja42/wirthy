@@ -258,6 +258,16 @@ must use a path sharing NO segment: `idSegs` keeps the locale, so two `en-us`
 MSN URLs "match" on that alone. This affects every syndicated article (MSN,
 Yahoo, AOL, aggregators), not just MSN.
 
+**…and `og:url` must ALSO agree when present.** "Same-host canonical wins" used
+to mean og:url was never consulted on such a page. YouTube Shorts rewrites the
+canonical as you scroll but leaves `og:url` **and `og:image`** on the FIRST
+Short, so a fresh canonical vouched for a stale og:image and every Shorts clip
+carried the first video's picture. Every same-host declaration (canonical,
+og:url) must now match `location`; a cross-host canonical is still skipped.
+Measured before changing it: across 108 corpus pages declaring both tags, 0
+have a same-host canonical and og:url naming different pages, so no real hero
+is lost. Guarded by the stale-og:url test in `thumbnail-fallback.test.ts`.
+
 **A SQUARE og:image is the site's logo, and is not promoted (Guard 3).** A site
 with no per-page art declares its brand mark as `og:image`, so promotion put a
 large logo above a page that has no hero at all. Measured across the corpus on
@@ -334,10 +344,13 @@ instagram.com/?hl=en are the measured cases), `og:image` is the site's own
 branding, and the staleness guard legitimately passes because the head tags
 really do agree with `location`. `feedSafeThumbnail` therefore DROPS a declared
 og:image whenever a tagger narrowed a multi-post feed (`narrowedFromFeed`, set by
-`pickVisibleFeedPost` when it sees >1 post); getPageThumbnail's first-`<img>`
-fallback is kept, since that is read from the live DOM and is genuinely this
-post's. Two different fields then carry the image, so fixing one leaves the other
-visibly wrong:
+`pickVisibleFeedPost` when it sees >1 post). getPageThumbnail's first-`<img>`
+guess is dropped too: it was once kept as "read from the live DOM, so this
+post's", but on a logged-in Instagram the first `<img>` is the VIEWER'S OWN
+nav-bar avatar, which heroed every feed cast (measured: the same 150x150
+`t51.89012-19` profile picture on a home-feed cast and a reel cast). Two
+different fields then carry the image, so fixing one leaves the other visibly
+wrong:
 
 - `capture.thumbnail` → the clip's library preview. Corrected by
   `posterFromBody`, which prefers the body's play-card poster (a `data:` URI is
@@ -452,6 +465,40 @@ resolves to an embeddable player. `igCanonicalPostUrl` also honours
 `tests/extraction/instagram-reel-poster.test.ts`, which drives `full-page`:
 under jsdom there is no layout, so an `article` capture of the fixture falls to
 Readability and the `<video>` is stripped before substitution ever runs.
+
+**Instagram redesign, 2026-10 — four defects measured live and logged in**
+(`tools/live-capture-probe.spec.ts` with `LIVECAP_WARM=1`; its `LIVECAP_TEXT`
+and largest-`dx-excl` dumps found each one):
+
+- **The player-glyph rule deleted the whole caption overlay.** It excluded the
+  mute glyph's nearest `[role="button"]`, and the reel's byline + caption +
+  avatar now sit inside ONE clickable `role=button` (162x292, 10 links). Census:
+  `postClone 1i/1v/10a → removeMarked 0i/0v/0a`, an empty clip and an imageless
+  cast. `excludeIgGlyph` now excludes the button only when it is glyph-sized (no
+  link/img/video, ≤40 chars), else the glyph alone.
+- **The cover-frame search climbed past the reel.** The video was dropped
+  whenever a ≥150px `<img>` sat within 11 ancestors, and that cover can lie
+  OUTSIDE the captured block, leaving neither video nor frame. The search is now
+  bounded by `post`.
+- **With no cover, the video's canvas frame had no destination.**
+  `substituteVideosWithPosters` takes a pre-clone frame before its Instagram
+  branch, so the frame shipped as a flat `data:` image: no play card and no cast
+  image. The taggers now stamp `data-dx-link` (reel: `igCanonicalPostUrl`; feed:
+  the post's own `/p/` or `/reel/` link) and, on a reel, `data-dx-thumb` = the
+  `og:image` when the head describes this reel. NOT `igResolvePoster` on the
+  live page: its `[role=main]` scope holds the preloaded next reels, and it
+  returned a neighbour's cover.
+- **The caption shipped twice.** Instagram renders a `visibility: hidden`,
+  absolutely positioned full-length copy to measure truncation. `markExcluded`
+  marks it, but a tagger-returned root clears every marker inside it, so
+  `excludeIgHidden` re-marks hidden elements as `dx-excl`.
+
+**Feed avatars render as empty ovals WITHOUT the image grant, by Instagram's
+choice.** Their URLs (`edm=AONqaa…`) are served with
+`Cross-Origin-Resource-Policy: same-origin`, so the browser refuses to draw a
+hotlink on wirthy.app; the reel page's avatar URL is served `cross-origin` and
+loads. With the grant they are inlined as `data:` and render. Diagnose by
+comparing `curl -D -` headers, not status codes, since both return 200.
 
 **The grant can be given later.** Declining at onboarding is not final — the
 overlay's Settings drawer shows an "Images" card (`initImagePermissionCard()` in
@@ -627,7 +674,7 @@ The clip should approximate the **content** column of the source site (title, by
 | **wikipedia.org** | (generic + `stripPageChrome`) | — | Article title + `<p>` body + infobox table + section headings. TOC sidebar and references-box pruned via `stripPageChrome`. | `wikipedia-visual` (live), `wikipedia-fixture-visual` (fixture, **pixel baseline**) |
 | **bbc.com/news** | (Tier 1 `<article>`) | — | Title + byline + date + hero image + body paragraphs. No tagger needed; `<article>` semantics suffice. | `bbc-visual` (live), `news-article-fixture-visual` (fixture, **pixel baseline** — generic `<article>` Tier 1 path) |
 | **reddit.com** | `tagReddit` | `postCloneReddit` | Subreddit avatar (round, left) + 2-row column right of it (subreddit · time on row 1, author on row 2) + title + post body or image + comments with avatar / dx-byline / action row each. Sidebar rails, "Back" button, ads dropped. | `reddit-visual` (live), `reddit-thread-fixture-visual` (fixture, **pixel baseline** — runs `tagReddit` + `postCloneReddit` via `hostOverride`) |
-| **youtube.com** | `tagYoutube` | `postCloneYoutube` | Channel avatar (round, left) + 2-row column right of it (channel name on row 1, "N subscribers" on row 2) + poster image (from `i.ytimg.com/.../hqdefault.jpg` or live `<video poster>`) + title + views/date + description + comments. Up-Next sidebar, action strip, chapter shelves dropped. View-count/date rebuilt into a single clean `dx-stats` "N views · date" row — the live `<yt-animated-rolling-number>` odometer's per-digit positioned spans would otherwise collapse to one-digit-per-line after sanitisation; the count is read from an aria-label and any long consecutive digit-run (the odometer strips render ALL of 0-9 per column) is rejected as garbage. The like/dislike/subscribe/share/download SVG widgets, `lottie-component` animations, `ytd-ticket-shelf-renderer` (Event Tickets/Bandsintown) and other structured-description cards are excluded (they render as oversized ℹ/↗ glyphs on live pages — invisible in the static `youtube-watch.html` snapshot, so the compact `youtube-viewcount` fixture guards them). | `youtube-visual` (live), `youtube-watch-fixture-visual` (fixture, **pixel baseline** — `tagYoutube` + `postCloneYoutube` via `hostOverride`; dynamic view/like widgets are empty in that static snapshot), `youtube-viewcount-fixture-visual` (fixture, **pixel baseline** — a compact fixture with a POPULATED odometer, guards the view-count rebuild + glyph exclusion) |
+| **youtube.com** | `tagYoutube` | `postCloneYoutube` | Channel avatar (round, left) + 2-row column right of it (channel name on row 1, "N subscribers" on row 2) + poster image (from `i.ytimg.com/.../hqdefault.jpg` or live `<video poster>`) + title + views/date + description + comments. Up-Next sidebar, action strip, chapter shelves dropped. View-count/date rebuilt into a single clean `dx-stats` "N views · date" row — the live `<yt-animated-rolling-number>` odometer's per-digit positioned spans would otherwise collapse to one-digit-per-line after sanitisation; the count is read from an aria-label and any long consecutive digit-run (the odometer strips render ALL of 0-9 per column) is rejected as garbage. The like/dislike/subscribe/share/download SVG widgets, `lottie-component` animations, `ytd-ticket-shelf-renderer` (Event Tickets/Bandsintown) and other structured-description cards are excluded (they render as oversized ℹ/↗ glyphs on live pages — invisible in the static `youtube-watch.html` snapshot, so the compact `youtube-viewcount` fixture guards them). **Shorts** (`/shorts/<id>`) branch off both functions: the page keeps a HIDDEN watch layout mounted, so `#primary-inner` exists there and the watch tagger used to scope the clip to an empty 0x0 column. `tagYoutube` instead returns the reel holding the visible `<video>`, and `postCloneYoutubeShorts` REBUILDS it (byline + `tweet-video` card → `/shorts/<id>` + title + counts) from `yt-reel-channel-bar-view-model`, `yt-shorts-video-title-view-model` and `reel-action-bar-view-model`; the reel is otherwise player controls and share menus. Poster is `oar2.jpg`, the portrait cover (present on 20/20 sampled Shorts), because `hqdefault`/`hq720` pillarbox a vertical video and the web player takes its aspect from the poster. Live check: `tools/yt-shorts-probe.spec.ts` (`YTSHORTS=1`) scrolls to the next Short, captures, renders, and clicks play. | `youtube-visual` (live), `youtube-watch-fixture-visual` (fixture, **pixel baseline** — `tagYoutube` + `postCloneYoutube` via `hostOverride`; dynamic view/like widgets are empty in that static snapshot), `youtube-viewcount-fixture-visual` (fixture, **pixel baseline** — a compact fixture with a POPULATED odometer, guards the view-count rebuild + glyph exclusion) |
 | **stackoverflow.com** | `tagStackOverflow` | — | Question + each answer as separate dx-post, code blocks preserved, user-info cards as dx-byline, post-menu as dx-stats. Cloudflare-walled — use the `test` persistent profile. | `stackoverflow-visual` (live, persistent profile), `stackoverflow-question-fixture-visual` (fixture, **pixel baseline** — runs `tagStackOverflow` via `hostOverride`; fixture is hand-crafted because real SO snapshots hit a Cloudflare hard-deny) |
 | **apnews.com** (generic) | (none — comment-widget-aware Tier 1 + layout finder) | — | Story headline + byline + hero + body paragraphs; the Viafoura reader-comments thread is dropped (or rides below), never replaces the story. AP pages have no real `<article>` — only `<main class="Page-main">` — but Viafoura renders each comment as `<article class="vf3-comment">`, so with `smartArticleDetection:false` (the sweep default) **`findArticleElement`'s first `article` match was a comment**. Fixed generically at THREE layers, all keyed off `COMMENT_WIDGET_SELECTOR` (Viafoura/Disqus/Coral/OpenWeb/FB/Hyvor/Commento): `findArticleElement` skips comment-widget `<article>`s (→ falls through to `<main>`), `scoreContentBlock` won't pick a comment block, and `markExcluded` drops the widget from a whole-`<main>` capture. **Must be verified LIVE** (offline fixtures + a layout-finder-only fix falsely pass — see [memory: project_comment_widget_layout_finder_fix]). A SECOND, unrelated defect (sweep 2026-09-11, `regressed` on apnews + apnews-tech) buried that story under ~4700px of chrome: AP leads a story with a **video player + "More Videos" rail** of unrelated clips, and its **6-slide photo carousel expanded to all six slides**. Three generic fixes, none per-site: the playlist headings joined BOTH `STRONG_RELATED_RE` and `RELATED_HEADING_RE` (seeds are filtered by the latter, so a heading missing there never reaches the strong branch — that alone left the rail in place); `markExcluded` drops a `position:absolute` slide offset `left:±N00%` when a sibling sits at a different percentage (`isCarouselSlide` — the sibling test is what keeps a lone offset badge/flyout); and the byline pass removes a video **transport-control bar** (≥2 replay/next/mute buttons, or a timecode pair), which otherwise sanitises to a bare glyph+digit strip. | `comment-widget.test.ts` (both `smartArticleDetection` modes, now covering the rail + carousel too) + `apnews-article` sidecar in `article.test.ts` + `apnews-article-fixture-visual` (**pixel baseline**, `AP_FIX=1`); live via the corpus sweep (`SWEEP_ONLY=apnews` → `test-output/corpus-sweep-run/apnews--2-clip.png`) |
 | **Hacker News** (`ycombinator.com`) | `tagHackerNews` | — | Post header (title link + `dx-stats` "N points · author · N comments" meta row) + threaded comments, each a `dx-post`/`dx-reply` card with a `dx-byline` (author + date) + body prose. Nested replies indented by `td.ind[indent]` depth. Vote arrows, `[–]` collapse toggles, per-comment nav links (parent/next/prev/root), orange masthead, and the reply form dropped. HN is nested `<table>` soup with no `<article>` — a tagger, not the generic path. | `hackernews-thread-fixture-visual` (fixture, **pixel baseline** — runs `tagHackerNews` via `hostOverride`; real snapshotted item page). Note: the older `hn-thread-fixture-visual` uses an idealized `<article>`-based fixture (generic Tier-1 path) and is kept as a shared-CSS guard. |

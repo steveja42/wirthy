@@ -109,7 +109,10 @@ export function subscribeFeed(
     // still stream in live — mirrors the single always-open subscribeMany below.
     const startLiveTail = () => {
       if (closed) return;
-      const filter: Filter = { ...baseFilter(scope), since: Math.floor(Date.now() / 1000) };
+      // No `since`: a cast's created_at is its CAPTURE time, minutes before it is
+      // published, and a relay drops a live event older than `since`. limit:1
+      // keeps the replay to one duplicate, which the feed's dedup discards.
+      const filter: Filter = { ...baseFilter(scope), limit: 1 };
       sub = pool.subscribeMany(relays, filter, {
         onevent: (e) => {
           if (closed) return;

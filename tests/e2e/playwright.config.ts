@@ -197,6 +197,21 @@ export default defineConfig({
       retries: 0,
     },
     {
+      name: 'idb-clips-dump',
+      testMatch: /tools\/idb-clips-dump\.spec\.ts$/,
+      retries: 0,
+    },
+    {
+      name: 'live-capture-probe',
+      testMatch: /tools\/live-capture-probe\.spec\.ts$/,
+      retries: 0,
+    },
+    {
+      name: 'yt-shorts-probe',
+      testMatch: /tools\/yt-shorts-probe\.spec\.ts$/,
+      retries: 0,
+    },
+    {
       name: 'census',
       testMatch: /tools[/]census[.]spec[.]ts$/,
       retries: 0,

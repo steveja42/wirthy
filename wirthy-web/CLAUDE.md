@@ -32,6 +32,7 @@ No CSS framework — all styling is plain CSS custom properties defined in `app/
 - **WSS only** for relay connections — never `ws://`.
 - **Sanitize Nostr content** before rendering — never trust raw event content as HTML.
 - **Origin-pin postMessage** on the extension bridge — both sides check `e.origin`.
+- **The feed's live tail must not filter on `since`.** A cast's `created_at` is its CAPTURE time (the overlay opening), which can be minutes before it is published. The signing flow even opens a fresh `/explore` tab mid-cast, and "View on Explore" only re-activates that tab. A relay drops a live event older than `since`, so with `since: now` the new cast never streamed in and only appeared after a refresh. `subscribeFeed`'s tail uses `limit: 1` instead, and the dedup discards the one replayed event. Guarded by the second test in `tests/e2e/web-feed.spec.ts`, whose mock relay applies `since`/`until` the way a real one does.
 - **TypeScript strict** — no `any`.
 
 ## Analytics

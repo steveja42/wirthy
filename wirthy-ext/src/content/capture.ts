@@ -393,6 +393,8 @@ function getPageThumbnail(): string | null {
     if (vid && /^[A-Za-z0-9_-]{11}$/.test(vid)) {
       return `https://i.ytimg.com/vi/${vid}/hqdefault.jpg`;
     }
+    const shortId = youtubeShortsId();
+    if (shortId) return youtubeShortsPoster(shortId);
   }
   // Refuse og:image when the page's own head tags describe a DIFFERENT URL
   // than the one being captured. Single-page apps routinely leave <head>
@@ -441,15 +443,24 @@ function headTagsDescribeCurrentPage(): boolean {
     try { sameHostCanonical = new URL(canonical, window.location.href).hostname === window.location.hostname; }
     catch { sameHostCanonical = true; }
   }
-  const declared = (canonical && sameHostCanonical) ? canonical : (ogUrl || canonical);
-  if (!declared) return true;
-  let declaredPath: string;
-  try { declaredPath = new URL(declared, window.location.href).pathname; } catch { return true; }
+  // EVERY same-host declaration must agree: YouTube Shorts rewrites canonical on
+  // scroll but leaves og:url + og:image on the first Short.
+  const declared = [(canonical && sameHostCanonical) ? canonical : '', ogUrl].filter(Boolean);
+  if (!declared.length && canonical) declared.push(canonical);
+  if (!declared.length) return true;
   // Honour the test path override: a fixture is served from
   // 127.0.0.1/<name>.html while the saved page's canonical still names the
   // real permalink, so without this every fixture looked "stale" and lost its
   // og:image — which silently gutted the facebook-reel baseline.
   const herePath = testPathOverride ?? window.location.pathname;
+  return declared.every(d => {
+    let declaredPath: string;
+    try { declaredPath = new URL(d, window.location.href).pathname; } catch { return true; }
+    return declaredPathMatches(declaredPath, herePath);
+  });
+}
+
+function declaredPathMatches(declaredPath: string, herePath: string): boolean {
   if (declaredPath === herePath) return true;
   // Compare the identifying segments (ids, slugs, handles) while ignoring the
   // ROUTE words that describe shape rather than identity — otherwise
@@ -4070,13 +4081,12 @@ function posterFromBody(html: string, current: string | null): string | null {
  * was captured. It then wins `pickImageUrl`, which ranks thumbnailUrl ahead of
  * the post's own imageUrls, and heroes the cast with Instagram's logo.
  *
- * Only the DECLARED og:image is dropped; getPageThumbnail's first-<img>
- * fallback is read from the live DOM and so is genuinely this post's.
+ * getPageThumbnail's first-<img> guess goes too: logged in to Instagram, that is
+ * the viewer's OWN nav-bar avatar. posterFromBody / castImageUrlFromBody then
+ * take the post's own media instead.
  */
 function feedSafeThumbnail(url: string | null): string | null {
-  if (!url || !narrowedFromFeed) return url;
-  const og = document.querySelector<HTMLMetaElement>('meta[property="og:image"]')?.content;
-  return og && url === og ? null : url;
+  return narrowedFromFeed ? null : url;
 }
 
 /**
@@ -6404,6 +6414,114 @@ function postCloneBitcointalk(clone: Element): void {
     .forEach(img => img.remove());
 }
 
+/** The Short's id on a `/shorts/<id>` page, else null. */
+function youtubeShortsId(): string | null {
+  return (testPathOverride ?? window.location.pathname).match(/^\/shorts\/([A-Za-z0-9_-]{11})/)?.[1] ?? null;
+}
+
+/** Portrait cover; hqdefault/hq720 pillarbox a Short (oar2 measured present on 20/20). */
+function youtubeShortsPoster(id: string): string {
+  return `https://i.ytimg.com/vi/${id}/oar2.jpg`;
+}
+
+/** The reel on screen: the one holding the visible <video>, else `[is-active]`. */
+function activeShortsReel(root: Document | Element): Element | null {
+  const reels = Array.from(root.querySelectorAll('ytd-reel-video-renderer'));
+  const visible = (el: Element) => { const b = el.getBoundingClientRect(); return b.width > 0 && b.height > 0; };
+  return reels.find(r => Array.from(r.querySelectorAll('video')).some(visible))
+    ?? reels.find(r => r.hasAttribute('is-active'))
+    ?? reels.find(visible)
+    ?? reels[0] ?? null;
+}
+
+/**
+ * Rebuild a Shorts reel clone as byline + play card + title + counts. The reel
+ * is player controls and share/remix menus around a little metadata, so it is
+ * rebuilt from the named parts rather than filtered.
+ */
+function postCloneYoutubeShorts(clone: Element, id: string): void {
+  // full-page passes the whole body; a selection fragment holds no reel and is left alone.
+  const reel = clone instanceof Element && clone.matches('ytd-reel-video-renderer') ? clone : activeShortsReel(clone);
+  if (!reel) return;
+  const doc = clone.ownerDocument!;
+  const abs = (href: string | null) => { try { return href ? new URL(href, 'https://www.youtube.com').href : null; } catch { return null; } };
+  const parts: Element[] = [];
+
+  const bar = reel.querySelector('yt-reel-channel-bar-view-model');
+  const avatar = bar?.querySelector('img');
+  const channel = bar?.querySelector('a[href*="/@"]');
+  if (channel) {
+    const byline = doc.createElement('div');
+    byline.className = 'dx-byline';
+    if (avatar?.getAttribute('src')) {
+      const img = doc.createElement('img');
+      img.setAttribute('src', avatar.getAttribute('src')!);
+      img.setAttribute('alt', '');
+      img.className = 'dx-avatar';
+      byline.appendChild(img);
+    }
+    const col = doc.createElement('div');
+    col.className = 'dx-byline-col';
+    const row = doc.createElement('div');
+    row.className = 'dx-byline-row dx-byline-row--sub';
+    const a = doc.createElement('a');
+    a.setAttribute('href', abs(channel.getAttribute('href')!.replace(/\/shorts\/?$/, '')) ?? '');
+    a.textContent = (channel.textContent ?? '').trim();
+    row.appendChild(a);
+    col.appendChild(row);
+    byline.appendChild(col);
+    parts.push(byline);
+  }
+
+  const figure = doc.createElement('figure');
+  const card = doc.createElement('a');
+  card.setAttribute('href', `https://www.youtube.com/shorts/${id}`);
+  card.className = 'tweet-video';
+  const poster = doc.createElement('img');
+  poster.setAttribute('src', youtubeShortsPoster(id));
+  poster.setAttribute('alt', 'Video thumbnail');
+  poster.setAttribute('width', '720');
+  poster.setAttribute('height', '1280');
+  poster.className = 'tweet-video-poster';
+  card.appendChild(poster);
+  const play = doc.createElement('div');
+  play.className = 'tweet-video-play';
+  play.textContent = '▶';
+  card.appendChild(play);
+  figure.appendChild(card);
+  parts.push(figure);
+
+  const titleSrc = reel.querySelector('yt-shorts-video-title-view-model h1')
+    ?? reel.querySelector('yt-shorts-video-title-view-model');
+  if (titleSrc && (titleSrc.textContent ?? '').trim()) {
+    const h1 = doc.createElement('h1');
+    h1.append(...Array.from(titleSrc.cloneNode(true).childNodes));
+    h1.querySelectorAll('a[href]').forEach(a => a.setAttribute('href', abs(a.getAttribute('href')) ?? ''));
+    parts.push(h1);
+  }
+
+  // Counts only: each action button's visible label, kept when it holds a digit.
+  const counts: string[] = [];
+  reel.querySelectorAll('reel-action-bar-view-model button[aria-label]').forEach(btn => {
+    const label = btn.getAttribute('aria-label') ?? '';
+    const text = (btn.closest('label')?.querySelector('span[role="text"]')?.textContent ?? '').trim();
+    if (!/\d/.test(text)) return;
+    if (/^like\b/i.test(label)) counts.push(`${text} likes`);
+    else if (/comment/i.test(label)) counts.push(`${text} comments`);
+  });
+  if (counts.length) {
+    const stats = doc.createElement('div');
+    stats.className = 'dx-stats';
+    stats.textContent = counts.join(' · ');
+    parts.push(stats);
+  }
+
+  const post = doc.createElement('div');
+  post.className = 'dx-post';
+  post.append(...parts);
+  clone.replaceChildren(post);
+}
+
 /**
  * Tag youtube.com watch pages. YT's content lives in `<ytd-watch-flexy>` with
  * `<div id="primary-inner">` as the actual content column (title, description,
@@ -6421,6 +6539,8 @@ function postCloneBitcointalk(clone: Element): void {
  * sidebar is excluded.
  */
 function tagYoutube(root: Document | Element): Element | void {
+  // Shorts keep a hidden watch layout mounted, so #primary-inner exists there too.
+  if (youtubeShortsId()) return activeShortsReel(root) ?? undefined;
   const primaryInner = root.querySelector('#primary-inner');
   if (!primaryInner) return undefined;
 
@@ -6859,6 +6979,29 @@ function pickVisibleFeedPost(posts: Element[]): Element | null {
  * Picks the reel occupying the viewport, walks up to the container that holds
  * both its media and its caption, and returns that as the capture root.
  */
+/**
+ * Exclude a player glyph's button, but only a glyph-sized one: Instagram also
+ * wraps the whole reel caption overlay (byline, links, avatar) in one
+ * role=button, and excluding that emptied the clip.
+ */
+function excludeIgGlyph(glyph: Element): void {
+  const btn = glyph.closest('[role="button"]');
+  const small = !!btn && !btn.querySelector('a, img, video')
+    && (btn.textContent ?? '').trim().length <= 40;
+  appendClass(small ? btn! : glyph, 'dx-excl');
+}
+
+/**
+ * Exclude hidden copies (Instagram's visibility:hidden caption-measuring span)
+ * inside a tagger root, where the pipeline's own hidden-element markers are cleared.
+ */
+function excludeIgHidden(scope: Element): void {
+  scope.querySelectorAll('*').forEach(el => {
+    const s = getComputedStyle(el);
+    if (s.visibility === 'hidden' || s.display === 'none') appendClass(el, 'dx-excl');
+  });
+}
+
 function tagInstagramReel(root: Document | Element): Element | void {
   const videos = Array.from(root.querySelectorAll('video'));
   if (!videos.length) return;
@@ -6910,7 +7053,7 @@ function tagInstagramReel(root: Document | Element): Element | void {
   post.querySelectorAll(
     'svg[aria-label="Audio is muted"], svg[aria-label="Audio is playing"],' +
     'svg[aria-label="Play button icon"], svg[aria-label="Tagged users"]',
-  ).forEach(el => appendClass(el.closest('[role="button"]') ?? el, 'dx-excl'));
+  ).forEach(excludeIgGlyph);
   // The audio-track thumbnail is player chrome, not post media: a 24x24 <img
   // alt="Audio image"> that re-uses the author's avatar URL, so it slips past
   // every size/host filter and shipped as a stray fourth image.
@@ -6944,6 +7087,9 @@ function tagInstagramReel(root: Document | Element): Element | void {
   {
     let scopeEl: Element = visible;
     for (let i = 0; i < 11 && scopeEl.parentElement; i++) scopeEl = scopeEl.parentElement;
+    // Never past `post`: a cover outside the captured block left the clip with
+    // neither the video nor the frame that replaced it.
+    if (!post.contains(scopeEl)) scopeEl = post;
     const coverFrame = Array.from(scopeEl.querySelectorAll('img')).find(img => {
       const r = img.getBoundingClientRect();
       return r.width >= 150 && r.height >= 150;
@@ -6954,6 +7100,16 @@ function tagInstagramReel(root: Document | Element): Element | void {
       // as the poster or postCloneInstagram finds nothing and the reel ships as
       // a flat, unclickable image with no way to play it.
       appendClass(coverFrame, 'dx-reel-poster');
+    } else {
+      // No cover: the <video> becomes its pre-clone canvas frame (a data: URI).
+      // Give that frame a play destination and a real URL for the cast.
+      const href = igCanonicalPostUrl();
+      if (href) visible.setAttribute('data-dx-link', href);
+      // og:image, not igResolvePoster: on the live page its search scope holds
+      // the preloaded NEXT reels, whose covers it returned.
+      const og = headTagsDescribeCurrentPage()
+        ? document.querySelector<HTMLMetaElement>('meta[property="og:image"]')?.content : null;
+      if (og && /^https:/i.test(og)) visible.setAttribute(VIDEO_THUMB_ATTR, og);
     }
   }
 
@@ -7037,6 +7193,7 @@ function tagInstagramReel(root: Document | Element): Element | void {
   // level up keeps the grid element itself inside the emitted HTML, and brings
   // the engagement rail (a SIBLING of the media column, measured at x=838) into
   // scope so it can be tagged at all.
+  excludeIgHidden(post.parentElement?.parentElement ?? post);
   const scope = post.parentElement;
   if (!scope || scope.querySelectorAll('video').length > 1) {
     log(LL.DEBUG, 'Wirthy: tagInstagram scoped to the visible reel (no parent scope)',
@@ -7131,7 +7288,7 @@ function tagInstagram(root: Document | Element): Element | void {
   // with hasSvg true), so match the svg and exclude its button wrapper.
   root.querySelectorAll(
     'svg[aria-label="Audio is muted"], svg[aria-label="Audio is playing"], svg[aria-label="Play button icon"]',
-  ).forEach(el => appendClass(el.closest('[role="button"]') ?? el, 'dx-excl'));
+  ).forEach(excludeIgGlyph);
 
   const posts = Array.from(root.querySelectorAll('article'))
     .filter(a => (a.textContent ?? '').trim().length > 0 || a.querySelector('img, video'));
@@ -7164,6 +7321,16 @@ function tagInstagram(root: Document | Element): Element | void {
 
   const visible = pickVisibleFeedPost(posts);
   if (visible) {
+    // A feed video is a blob: stream whose poster is the pre-clone canvas
+    // frame; its permalink is what makes that frame a play-in-place card.
+    const permalink = Array.from(visible.querySelectorAll('a[href]'))
+      .map(a => /^\/(?:[^/]+\/)?(p|reel)\/([A-Za-z0-9_-]+)/.exec(a.getAttribute('href') ?? ''))
+      .find(m => m);
+    excludeIgHidden(visible);
+    if (permalink) {
+      visible.querySelectorAll('video').forEach(v =>
+        v.setAttribute('data-dx-link', `https://www.instagram.com/${permalink[1]}/${permalink[2]}/`));
+    }
     log(LL.DEBUG, `Wirthy: tagInstagram scoped to the visible post of ${posts.length}`,
       'url:', window.location.href);
     return visible;
@@ -7867,7 +8034,7 @@ const SITE_TAGGERS: SiteTagger_Entry[] = [
     match: h => /(^|\.)youtube\.com$/i.test(h),
     tag: tagYoutube,
     postClone: postCloneYoutube,
-    anchors: ['#primary-inner', 'ytd-video-owner-renderer, #owner'],
+    anchors: ['#primary-inner, ytd-reel-video-renderer', 'ytd-video-owner-renderer, #owner, yt-reel-channel-bar-view-model'],
   },
   {
     name: 'hackernews',
@@ -8258,6 +8425,8 @@ function postCloneReddit(clone: Element): void {
  */
 function postCloneYoutube(clone: Element): void {
   const doc = clone.ownerDocument!;
+  const shortId = youtubeShortsId();
+  if (shortId) { postCloneYoutubeShorts(clone, shortId); return; }
 
   // Replace the #player subtree with a synthetic poster <figure> hero. Needs
   // the video id (for the poster fallback + link); when it's absent — e.g. a
