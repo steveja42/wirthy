@@ -189,16 +189,37 @@ function NoteEditor({
  * iframe is never detached and playback simply continues.
  */
 const ClipHtmlBody = React.memo(function ClipHtmlBody({
-  html, bodyRef,
-}: { html: string; bodyRef: React.RefObject<HTMLDivElement | null> }) {
+  html, bodyRef, pageUrl,
+}: { html: string; bodyRef: React.RefObject<HTMLDivElement | null>; pageUrl: string }) {
+  const linked = React.useMemo(() => linkImageOnlyBody(html, pageUrl), [html, pageUrl]);
   return (
     <div
       ref={bodyRef}
       className="clip-body"
-      dangerouslySetInnerHTML={{ __html: html }}
+      dangerouslySetInnerHTML={{ __html: linked }}
     />
   );
 });
+
+// A body that is only pictures (a map or canvas app captured as its og:image)
+// has nothing to click, so link each image to the page it was captured from.
+function linkImageOnlyBody(html: string, pageUrl: string): string {
+  if (typeof DOMParser === 'undefined' || !/^https?:/i.test(pageUrl)) return html;
+  const doc = new DOMParser().parseFromString(`<body>${html}</body>`, 'text/html');
+  const body = doc.body;
+  const imgs = Array.from(body.querySelectorAll('img'));
+  if (imgs.length === 0 || (body.textContent ?? '').trim()) return html;
+  if (body.querySelector('a, video, iframe, [class*="tweet-video"]')) return html;
+  for (const img of imgs) {
+    const a = doc.createElement('a');
+    a.href = pageUrl;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    img.replaceWith(a);
+    a.appendChild(img);
+  }
+  return body.innerHTML;
+}
 
 // An emoji image: the alt is ONLY emoji (flags, skin tones and ZWJ sequences
 // included) and short. X/Twemoji, GitHub, Slack and Discourse all substitute
@@ -496,7 +517,7 @@ export default function DetailPanel({ clip, author, onDelete, onUpdateNote, bodi
         // The author's own bridged clips carry rich dx-* bodyHtml — render it as
         // before (full fidelity). It wins over the public markdown.
         if (bodyHtml) {
-          return <ClipHtmlBody html={bodyHtml} bodyRef={bodyRef} />;
+          return <ClipHtmlBody html={bodyHtml} bodyRef={bodyRef} pageUrl={capture.url} />;
         }
         // Public NIP-23 long-form (kind 30023): content is markdown. Render it
         // through the same .clip-body prose styles. Images resolve from the
@@ -518,7 +539,11 @@ export default function DetailPanel({ clip, author, onDelete, onUpdateNote, bodi
             !!thumbnail && markdownHasImage(capture.markdown, thumbnail);
           return (
             <div className="clip-body" ref={bodyRef}>
-              {thumbnail && !heroInBody && <img className="longform-hero" src={thumbnail} alt="" referrerPolicy="no-referrer" />}
+              {thumbnail && !heroInBody && (
+                <a href={capture.url} target="_blank" rel="noopener noreferrer" title={capture.url}>
+                  <img className="longform-hero" src={thumbnail} alt="" referrerPolicy="no-referrer" />
+                </a>
+              )}
               <ReactMarkdown remarkPlugins={[remarkGfm]} components={MD_COMPONENTS}>{capture.markdown}</ReactMarkdown>
             </div>
           );
@@ -544,7 +569,11 @@ export default function DetailPanel({ clip, author, onDelete, onUpdateNote, bodi
                     {galleryUrls.map((src, i) => <img key={i} src={src} alt="" referrerPolicy="no-referrer" />)}
                   </div>
                 )
-                : photoUrls.length === 0 && thumbnail && <img src={thumbnail} alt="" referrerPolicy="no-referrer" />}
+                : photoUrls.length === 0 && thumbnail && (
+                  <a href={capture.url} target="_blank" rel="noopener noreferrer" title={capture.url}>
+                    <img src={thumbnail} alt="" referrerPolicy="no-referrer" />
+                  </a>
+                )}
               {capture.selectionText && (
                 <blockquote
                   className="detail-excerpt"
