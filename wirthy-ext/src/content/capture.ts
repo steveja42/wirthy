@@ -2765,7 +2765,7 @@ async function harvestContentFrames(scope: Document | Element): Promise<Map<stri
     if (!/^https?:/i.test(f.src) || reqs.some(r => r.key === src)) continue;
     if (/platform\.twitter\.com|twitter-widget/i.test(src + f.id) || f.hasAttribute('data-tweet-id')) continue;
     if (matchVideoEmbed(f.src) || AD_FRAME_SRC_RE.test(f.src)) continue;
-    if (f.closest(`${SPONSORED_WIDGET_SELECTOR}, ${COMMENT_WIDGET_SELECTOR}`)) continue;
+    if (inSponsoredWidget(f) || f.closest(COMMENT_WIDGET_SELECTOR)) continue;
     const r = f.getBoundingClientRect();
     if (r.width < CONTENT_FRAME_MIN_W || r.height < CONTENT_FRAME_MIN_H) continue;
     reqs.push({ key: src, src: f.src });
@@ -3280,6 +3280,25 @@ const SPONSORED_WIDGET_SELECTOR = [
   '[class*="sponsored" i]', '[id*="sponsored" i]',                             // explicit sponsored blocks
   '[data-ad-slot]', '[data-adunit]', '[aria-label*="advertisement" i]',        // generic ad-slot markers
 ].join(', ');
+const WIDGET_PROSE_MIN_CHARS = 200;
+
+/** A widget-named element holding ≥2 real paragraphs wraps the story itself
+ *  (interestingengineering's `#taboola-article-content`), not a teaser grid. */
+function holdsArticleProse(el: Element): boolean {
+  let n = 0;
+  for (const p of Array.from(el.querySelectorAll('p'))) {
+    if ((p.textContent ?? '').trim().length >= WIDGET_PROSE_MIN_CHARS && ++n >= 2) return true;
+  }
+  return false;
+}
+
+/** True when `el` is, or sits inside, a sponsored widget that is not a story wrapper. */
+function inSponsoredWidget(el: Element): boolean {
+  for (let w = el.closest(SPONSORED_WIDGET_SELECTOR); w; w = w.parentElement?.closest(SPONSORED_WIDGET_SELECTOR) ?? null) {
+    if (!holdsArticleProse(w)) return true;
+  }
+  return false;
+}
 // Infinite-scroll feed readers PRELOAD the next article(s) into the SAME DOM,
 // below the one the user is actually viewing. MSN is the reference case: an
 // `/ss-<id>` slideshow page carries four `consumption-page` elements — the
@@ -3356,7 +3375,7 @@ function scoreContentBlock(el: Element, hasLayout: boolean): BlockScore | null {
   if (el.matches(COMMENT_WIDGET_SELECTOR) || el.closest(COMMENT_WIDGET_SELECTOR)) return null;
   // Likewise never pick a sponsored-content / native-ad recirculation widget
   // (Taboola/Outbrain/…) — a grid of paid teaser cards that can outscore the story.
-  if (el.matches(SPONSORED_WIDGET_SELECTOR) || el.closest(SPONSORED_WIDGET_SELECTOR)) return null;
+  if (inSponsoredWidget(el)) return null;
   // Never pick an infinite-scroll feed's PRELOADED next article. It is contiguous
   // prose, so on a page whose real content is fragmented (an MSN gallery, split
   // across per-slide metadata blocks) it would otherwise win outright.
@@ -4846,7 +4865,7 @@ function markExcluded(root: HTMLElement = document.body): () => void {
   // removeMarked prunes it from the clip. Same rationale as the comment widgets.
   try {
     querySelectorAllDeep(root, SPONSORED_WIDGET_SELECTOR).forEach(w => {
-      w.setAttribute(EXCL_MARKER, '1');
+      if (!holdsArticleProse(w)) w.setAttribute(EXCL_MARKER, '1');
     });
   } catch { /* invalid selector on some engine — skip */ }
 
