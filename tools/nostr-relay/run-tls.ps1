@@ -23,6 +23,14 @@ $keyFile = Join-Path $certDir 'localhost-key.pem'
 
 function Test-Cmd($name) { $null -ne (Get-Command $name -ErrorAction SilentlyContinue) }
 
+# run.ps1 already launches this hidden, so a second copy would only fail on Caddy's admin port.
+$existing = Get-NetTCPConnection -LocalPort $TLS_PORT -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1
+if ($existing) {
+  $owner = (Get-Process -Id $existing.OwningProcess -ErrorAction SilentlyContinue).ProcessName
+  Write-Host "TLS relay proxy already running: wss://localhost:$TLS_PORT (pid $($existing.OwningProcess), $owner)." -ForegroundColor Green
+  exit 0
+}
+
 if (-not (Test-Cmd 'caddy')) {
   Write-Host 'caddy not found on PATH. Install it: https://caddyserver.com/docs/install' -ForegroundColor Red
   exit 1
