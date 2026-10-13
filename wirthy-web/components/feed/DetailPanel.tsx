@@ -13,6 +13,7 @@ import { CATEGORIES, signalRank } from '@/lib/constants';
 import { requestClipBody } from '@/lib/bridge/extension-bridge';
 import { useClipVideoPlayers } from '@/components/clips/ClipVideoPlayers';
 import { resolveVideoEmbed } from '@/lib/video-embed';
+import { sanitizePublicHtml } from '@/lib/sanitize-html';
 
 interface DetailPanelProps {
   clip: ClipData | null;
@@ -200,6 +201,13 @@ const ClipHtmlBody = React.memo(function ClipHtmlBody({
     />
   );
 });
+
+// A selection excerpt. On a public cast this HTML comes straight from the
+// event's `quote` tag, which any author controls — so it is always sanitised.
+function ExcerptHtml({ html }: { html: string }) {
+  const safe = React.useMemo(() => sanitizePublicHtml(html), [html]);
+  return <blockquote className="detail-excerpt" dangerouslySetInnerHTML={{ __html: safe }} />;
+}
 
 // A body that is only pictures (a map or canvas app captured as its og:image)
 // has nothing to click, so link each image to the page it was captured from.
@@ -574,12 +582,7 @@ export default function DetailPanel({ clip, author, onDelete, onUpdateNote, bodi
                     <img src={thumbnail} alt="" referrerPolicy="no-referrer" />
                   </a>
                 )}
-              {capture.selectionText && (
-                <blockquote
-                  className="detail-excerpt"
-                  dangerouslySetInnerHTML={{ __html: capture.selectionText }}
-                />
-              )}
+              {capture.selectionText && <ExcerptHtml html={capture.selectionText} />}
               {capture.bodyText && renderTextWithBreaks(capture.bodyText, inlineUrls)}
             </div>
           );
