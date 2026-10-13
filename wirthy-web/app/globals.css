@@ -3570,7 +3570,7 @@ a { color: inherit; }
   flex-shrink: 0;
 }
 .btn-detail-delete,
-.btn-detail-link {
+.btn-detail-share {
   background: transparent;
   border: 1px solid var(--rule);
   color: var(--ink-3);
@@ -3584,10 +3584,66 @@ a { color: inherit; }
   transition: color 120ms, border-color 120ms, background 120ms;
   flex-shrink: 0;
 }
-.btn-detail-link:hover {
+.btn-detail-share:hover,
+.btn-detail-share[aria-expanded="true"] {
   color: var(--accent-ink);
   border-color: var(--accent-ink);
 }
+
+/* ── Detail panel — share popover ───────────────────────────────────────── */
+.share { position: relative; }
+.share-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 20;
+  width: min(380px, calc(100vw - 32px));
+  padding: 12px;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  box-shadow: var(--shadow-pop);
+  font-family: var(--sans);
+}
+.share-label {
+  font-size: 12px;
+  color: var(--ink-3);
+  margin-bottom: 6px;
+}
+.share-row { display: flex; gap: 6px; }
+.share-url {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 7px 8px;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  background: var(--paper-2);
+  color: var(--ink);
+}
+.share-copy { padding: 7px 12px; white-space: nowrap; min-width: 84px; justify-content: center; }
+.share-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-top: 10px;
+  font-size: 12px;
+}
+.share-text-btn {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: var(--ink-3);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.share-text-btn:hover { color: var(--ink); }
+.share-open { color: var(--accent-ink); text-decoration: none; }
+.share-open:hover { text-decoration: underline; }
 .btn-detail-delete:hover {
   color: oklch(0.45 0.18 25);
   border-color: oklch(0.55 0.18 25);

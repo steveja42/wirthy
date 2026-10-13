@@ -16,6 +16,7 @@ import { useAuthorProfiles } from '@/hooks/useAuthorProfiles';
 import { authorDisplayName, type AuthorProfile } from '@/lib/nostr/profiles';
 import { readSsrAuthor, withSsrAuthor } from '@/lib/nostr/ssr-author';
 import { WEB_STORE_URL } from '@/lib/constants';
+import { castPath } from '@/lib/nostr/cast-ref';
 import { countEvent } from '@/lib/analytics';
 import type { ClipData } from '@/lib/types';
 import type { ClipBody } from '@/lib/bridge/ClipStoreContext';
@@ -110,6 +111,7 @@ export default function CastPageClient() {
               onUpdateNote={() => {}}
               bodies={EMPTY_BODIES}
               onBodyFetched={() => {}}
+              shareHref={castPath(clip)}
               readOnly
             />
           </>

@@ -14,6 +14,10 @@ import { requestClipBody } from '@/lib/bridge/extension-bridge';
 import { useClipVideoPlayers } from '@/components/clips/ClipVideoPlayers';
 import { resolveVideoEmbed } from '@/lib/video-embed';
 import { sanitizePublicHtml } from '@/lib/sanitize-html';
+import ShareButton from './ShareButton';
+
+// history.state key marking the entry a fullscreen post pushed (value: the clip id).
+const FULLSCREEN_STATE_KEY = 'wirthyFullscreen';
 
 interface DetailPanelProps {
   clip: ClipData | null;
@@ -25,7 +29,8 @@ interface DetailPanelProps {
   // Right-click on the caster label. Absent on call sites with no follow
   // concept (e.g. the private Library, which has no public authorPubkey).
   onAuthorContextMenu?: (pubkey: string, x: number, y: number) => void;
-  // The post's own shareable page (/c/<id>), shown as a link action. Public casts only.
+  // The post's own page (/c/<id>): enables the Share action and puts this URL in the
+  // address bar while fullscreen. Public casts only.
   shareHref?: string | null;
   // Read-only views (a single public cast): no delete, and the note is shown, not editable.
   readOnly?: boolean;
@@ -360,6 +365,45 @@ export default function DetailPanel({ clip, author, onDelete, onUpdateNote, bodi
     if (isFullscreen) setIsFullscreen(false);
   }
 
+  // Fullscreen on a public cast puts its /c/<id> URL in the address bar, so Back
+  // closes it and the address is shareable. The pushed entry carries Next's own
+  // history state forward: without it, Next reloads the page on popstate.
+  const clipId = clip?.capture.id ?? null;
+  const pushedRef = useRef(false);
+  useEffect(() => {
+    if (!shareHref || !clipId) return;
+    const onPop = () => {
+      const mine = window.history.state?.[FULLSCREEN_STATE_KEY] === clipId;
+      pushedRef.current = mine;
+      setIsFullscreen(mine);
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, [shareHref, clipId]);
+
+  // Any exit (button, Escape, clip swap) pops the entry this panel pushed.
+  useEffect(() => {
+    if (isFullscreen || !pushedRef.current) return;
+    pushedRef.current = false;
+    if (window.history.state?.[FULLSCREEN_STATE_KEY]) window.history.back();
+  }, [isFullscreen]);
+
+  useEffect(() => {
+    if (!isFullscreen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setIsFullscreen(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isFullscreen]);
+
+  const toggleFullscreen = () => {
+    if (isFullscreen) { setIsFullscreen(false); return; }
+    if (shareHref && clipId && window.location.pathname !== shareHref) {
+      window.history.pushState({ ...window.history.state, [FULLSCREEN_STATE_KEY]: clipId }, '', shareHref);
+      pushedRef.current = true;
+    }
+    setIsFullscreen(true);
+  };
+
   // Request body from extension when clip changes and it's not cached yet.
   useEffect(() => {
     if (!clip) return;
@@ -415,7 +459,7 @@ export default function DetailPanel({ clip, author, onDelete, onUpdateNote, bodi
           <span className="detail-byline">{formatDate(capture.timestamp)}</span>
           <button
             className="detail-close"
-            onClick={() => setIsFullscreen(!isFullscreen)}
+            onClick={toggleFullscreen}
             title={isFullscreen ? 'Exit fullscreen' : 'Expand to fullscreen'}
             aria-label={isFullscreen ? 'Exit fullscreen' : 'Expand to fullscreen'}
           >
@@ -429,14 +473,7 @@ export default function DetailPanel({ clip, author, onDelete, onUpdateNote, bodi
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
           <h2 className="detail-title" style={{ flex: 1, margin: 0 }}>{capture.title}</h2>
           <div className="detail-actions">
-            {shareHref && (
-              <a className="btn-detail-link" href={shareHref} title="Open this post’s own page (a link you can share)" aria-label="Open this post’s page">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.5 1.5" />
-                  <path d="M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.5-1.5" />
-                </svg>
-              </a>
-            )}
+            {shareHref && <ShareButton href={shareHref} title={capture.title} />}
             {!readOnly && (
               <button
                 className="btn-detail-delete"

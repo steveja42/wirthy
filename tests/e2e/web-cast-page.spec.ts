@@ -97,10 +97,70 @@ test.describe('public cast page', () => {
     await expect(page.locator('.cast-page-status h1')).toHaveText('That isn’t a post link.', { timeout: 15_000 });
   });
 
-  test('the Explore feed links each post to its page', async ({ page }) => {
+  test('Share opens a popover with a copyable link to the post page', async ({ page, context }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
     await mockRelay(page);
     await page.goto('/explore');
     await expect(page.locator('article.clip', { hasText: TITLE }).first()).toBeVisible({ timeout: 15_000 });
-    await expect(page.locator('.btn-detail-link').first()).toHaveAttribute('href', `/c/${NADDR}`);
+
+    await page.locator('.btn-detail-share').first().click();
+    const pop = page.locator('.share-popover');
+    await expect(pop.locator('.share-url')).toHaveValue(new URL(`/c/${NADDR}`, page.url()).href);
+    await expect(pop.locator('.share-open')).toHaveAttribute('href', `/c/${NADDR}`);
+    await page.screenshot({ path: join(OUT, 'share-popover.png') });
+
+    await pop.locator('.share-copy').click();
+    await expect(pop.locator('.share-copy')).toHaveText('Copied ✓');
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(new URL(`/c/${NADDR}`, page.url()).href);
+    await pop.locator('.share-text-btn').click();
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(`nostr:${NADDR}`);
+
+    await page.keyboard.press('Escape');
+    await expect(pop).toHaveCount(0);
+  });
+
+  test('the cast page has Share but no link to itself', async ({ page }) => {
+    await mockRelay(page);
+    await page.goto(`/c/${NADDR}`);
+    await expect(page.locator('.detail-title')).toHaveText(TITLE, { timeout: 15_000 });
+    await page.locator('.btn-detail-share').click();
+    await expect(page.locator('.share-url')).toHaveValue(new URL(`/c/${NADDR}`, page.url()).href);
+    await expect(page.locator('.share-open')).toHaveCount(0);
+  });
+
+  test('fullscreen puts the post URL in the address bar and Back closes it', async ({ page }) => {
+    await mockRelay(page);
+    await page.goto('/explore?q=Worth');
+    await expect(page.locator('article.clip', { hasText: TITLE }).first()).toBeVisible({ timeout: 15_000 });
+    // A full reload would lose this marker; Back must stay a same-document navigation.
+    await page.evaluate(() => { (window as unknown as { __noReload: boolean }).__noReload = true; });
+    const panel = page.locator('aside.detail').first();
+    const expand = panel.getByRole('button', { name: 'Expand to fullscreen' });
+
+    await expand.click();
+    await expect(panel).toHaveClass(/detail--fullscreen/);
+    expect(new URL(page.url()).pathname).toBe(`/c/${NADDR}`);
+    expect(new URL(page.url()).search).toBe('');
+
+    await page.goBack();
+    await expect(panel).not.toHaveClass(/detail--fullscreen/);
+    expect(new URL(page.url()).pathname + new URL(page.url()).search).toBe('/explore?q=Worth');
+
+    await page.goForward();
+    await expect(panel).toHaveClass(/detail--fullscreen/);
+    expect(new URL(page.url()).pathname).toBe(`/c/${NADDR}`);
+
+    // The button and Escape both pop the entry, so the address returns to the feed.
+    await panel.getByRole('button', { name: 'Exit fullscreen' }).click();
+    await expect(panel).not.toHaveClass(/detail--fullscreen/);
+    await expect.poll(() => new URL(page.url()).pathname).toBe('/explore');
+
+    await expand.click();
+    await expect.poll(() => new URL(page.url()).pathname).toBe(`/c/${NADDR}`);
+    await page.keyboard.press('Escape');
+    await expect(panel).not.toHaveClass(/detail--fullscreen/);
+    await expect.poll(() => new URL(page.url()).pathname).toBe('/explore');
+
+    expect(await page.evaluate(() => (window as unknown as { __noReload?: boolean }).__noReload)).toBe(true);
   });
 });
