@@ -1749,7 +1749,7 @@ async function buildCastTemplates(
 ): Promise<{ noteTemplate: EventTemplate; longFormTemplate: EventTemplate | null }> {
   const relays = await resolveActiveRelays();
   const authorPubkey = resolveAuthorPubkey();
-  const snippet = buildWirthySnippet(evaluation);
+  const snippet = buildWirthySnippet(evaluation, capture.note);
 
   const markdown = longFormMarkdownFor(capture);
   const hasLongForm = !!markdown;

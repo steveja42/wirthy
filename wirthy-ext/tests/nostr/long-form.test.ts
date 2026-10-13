@@ -130,9 +130,11 @@ describe('createLongFormEvent (kind 30023)', () => {
 });
 
 describe('buildWirthySnippet', () => {
-  it('reads "Wirthy → … in Category" with no author mention', () => {
+  it('reads "Clipped via Wirthy → … in Category" with no author mention', () => {
     const s = buildWirthySnippet({ ...artFx.evaluation, category: 'Tech' });
-    expect(s).toContain('Wirthy →');
+    expect(s).toContain('Clipped via Wirthy →');
+    expect(s).toMatch(/in Tech[^\n]* {2}\n─{20}/);
+    expect(s).not.toContain('Note:');
     expect(s).toContain('in Tech');
     expect(s).not.toContain('Wirthy by');
     expect(s).not.toContain('Wirthy —');
@@ -152,6 +154,11 @@ describe('buildWirthySnippet', () => {
   it('lists qualifiers when present', () => {
     const s = buildWirthySnippet({ ...artFx.evaluation, qualifiers: ['Primary Source', 'Timeless'] });
     expect(s).toContain('[Primary Source, Timeless]');
+  });
+
+  it('puts the note on the line after the tagline, then the separator', () => {
+    const s = buildWirthySnippet({ ...artFx.evaluation, category: 'Tech' }, '  my take  ');
+    expect(s).toMatch(/in Tech[^\n]* {2}\nNote: my take {2}\n─{20}/);
   });
 });
 

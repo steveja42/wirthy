@@ -84,11 +84,6 @@ function baseEvaluationTags(capture: Capture, evaluation: Evaluation): string[][
   return tags;
 }
 
-function appendNoteToContent(content: string, capture: Capture): string {
-  if (!capture.note || capture.note.trim().length === 0) return content;
-  return `${content}\n\n— ${capture.note}`;
-}
-
 // Content images — publish every image as a real URL (never base64) as one
 // NIP-92 `imeta` tag per image. Modern clients (Primal/Damus/Nostrudel) render
 // a gallery from these tags. We deliberately do NOT append bare image-URL lines
@@ -283,21 +278,27 @@ export function sourceHtmlForLongForm(capture: Capture): string | undefined {
   return undefined;
 }
 
+// Box-drawing, not '-': not markdown syntax, so it can't make the line above a setext heading.
+const SNIPPET_SEPARATOR = '─'.repeat(20);
+
 /**
- * The "Wirthy → ★★★ Rating in Category · [qualifiers]" snippet prepended to
- * every cast's content. Wrapped in invisible sentinel markers
- * (SNIPPET_SENTINEL_*) so wirthy's own web app strips it before rendering,
- * while third-party Nostr clients show the visible line. No author mention — the
- * client already shows the poster.
+ * The "Clipped via Wirthy → ★★★ Rating in Category · [qualifiers]" header
+ * prepended to every cast's content, followed by the user's "Note: …" (if any)
+ * and a separator line. Wrapped in invisible sentinel markers
+ * (SNIPPET_SENTINEL_*) so wirthy's own web app strips it before rendering (it
+ * shows the note from the `note` tag), while third-party Nostr clients show it.
+ * No author mention — the client already shows the poster.
  */
-export function buildWirthySnippet(evaluation: Evaluation): string {
+export function buildWirthySnippet(evaluation: Evaluation, note?: string): string {
   const rating = evaluation.signal
     ? `${'★'.repeat(signalRank(evaluation.signal))} ${evaluation.signal} `
     : '';
   const parts = [`${rating}in ${evaluation.category}`];
   if (evaluation.qualifiers.length > 0) parts.push(`[${evaluation.qualifiers.join(', ')}]`);
-  const line = `Wirthy → ${parts.join(' · ')}`;
-  return `${SNIPPET_SENTINEL_OPEN}${line}${SNIPPET_SENTINEL_CLOSE}`;
+  const tagline = `Clipped via Wirthy → ${parts.join(' · ')}`;
+  // Two trailing spaces = a markdown hard break, so a long-form keeps each line separate.
+  const lines = note?.trim() ? [tagline, `Note: ${note.trim()}`, SNIPPET_SEPARATOR] : [tagline, SNIPPET_SEPARATOR];
+  return `${SNIPPET_SENTINEL_OPEN}${lines.join('  \n')}${SNIPPET_SENTINEL_CLOSE}`;
 }
 
 // The web-app CTA appended to the end of every cast's content, visible in
@@ -370,7 +371,7 @@ export function createQuoteNoteEvent(
     kind: 1,
     created_at: Math.floor(capture.timestamp / 1000),
     tags,
-    content: withSnippet(appendNoteToContent(contentLines.join('\n'), capture), snippet),
+    content: withSnippet(contentLines.join('\n'), snippet),
   };
 }
 
@@ -447,7 +448,7 @@ export function createResourceNoteEvent(
     kind: 1,
     created_at: Math.floor(capture.timestamp / 1000),
     tags,
-    content: withSnippet(appendNoteToContent(contentLines.join('\n'), capture), snippet),
+    content: withSnippet(contentLines.join('\n'), snippet),
   };
 }
 
