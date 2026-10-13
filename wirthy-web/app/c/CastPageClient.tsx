@@ -13,7 +13,8 @@ import SignInModal from '@/components/auth/SignInModal';
 import { useNostrAuth } from '@/hooks/useNostrAuth';
 import { useBridgeAuth } from '@/hooks/useBridgeAuth';
 import { useAuthorProfiles } from '@/hooks/useAuthorProfiles';
-import { authorDisplayName } from '@/lib/nostr/profiles';
+import { authorDisplayName, type AuthorProfile } from '@/lib/nostr/profiles';
+import { readSsrAuthor, withSsrAuthor } from '@/lib/nostr/ssr-author';
 import { WEB_STORE_URL } from '@/lib/constants';
 import { countEvent } from '@/lib/analytics';
 import type { ClipData } from '@/lib/types';
@@ -23,7 +24,7 @@ type PageState =
   | { status: 'loading' }
   | { status: 'invalid' }
   | { status: 'missing' }
-  | { status: 'found'; clip: ClipData };
+  | { status: 'found'; clip: ClipData; ssrAuthor: AuthorProfile | null };
 
 // A public cast carries its body in the event, so DetailPanel's private body cache is unused.
 const EMPTY_BODIES: Map<string, ClipBody> = new Map();
@@ -35,7 +36,9 @@ export default function CastPageClient() {
   const [signInOpen, setSignInOpen] = useState(false);
   const [state, setState] = useState<PageState>({ status: 'loading' });
   const clips = useMemo(() => (state.status === 'found' ? [state.clip] : NO_CLIPS), [state]);
-  const authors = useAuthorProfiles(clips);
+  const liveAuthors = useAuthorProfiles(clips);
+  const ssrAuthor = state.status === 'found' ? state.ssrAuthor : null;
+  const authors = useMemo(() => withSsrAuthor(liveAuthors, ssrAuthor), [liveAuthors, ssrAuthor]);
 
   useEffect(() => {
     let cancelled = false;
@@ -55,7 +58,7 @@ export default function CastPageClient() {
       if (canonical !== segment) {
         window.history.replaceState(window.history.state, '', `/c/${canonical}${window.location.search}${window.location.hash}`);
       }
-      setState({ status: 'found', clip: parseEvent(found.event) });
+      setState({ status: 'found', clip: parseEvent(found.event), ssrAuthor: readSsrAuthor() });
     })();
     return () => { cancelled = true; };
   }, []);

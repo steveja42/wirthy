@@ -58,6 +58,29 @@ export interface PublisherProfile {
   name?: string;
   about?: string;
   picture?: string;
+  nip05?: string;
+}
+
+// A NIP-05 domain we are willing to fetch from: a plain DNS name, no IP literal or port,
+// since the address comes from event text and the share-page function fetches it.
+const NIP05_RE = /^([a-z0-9._-]+)@((?:[a-z0-9-]+\.)+[a-z]{2,})$/i;
+
+/** True when `nip05` resolves to `pubkey` via the domain's /.well-known/nostr.json. */
+export async function verifyNip05(pubkey: string, nip05: string, timeoutMs = 1500): Promise<boolean> {
+  const m = NIP05_RE.exec(nip05.trim());
+  if (!m) return false;
+  const [, name, domain] = m;
+  try {
+    const res = await fetch(`https://${domain}/.well-known/nostr.json?name=${encodeURIComponent(name)}`, {
+      signal: AbortSignal.timeout(timeoutMs),
+      redirect: 'error',
+    });
+    if (!res.ok) return false;
+    const names = ((await res.json()) as { names?: Record<string, string> }).names ?? {};
+    return names[name] === pubkey || names[name.toLowerCase()] === pubkey;
+  } catch {
+    return false;
+  }
 }
 
 /** The newest kind-0 for `pubkey`, or null. Malformed profile JSON reads as an empty profile. */
@@ -71,7 +94,7 @@ export async function fetchProfile(pubkey: string, relays: string[], timeoutMs =
     try {
       const m = JSON.parse(newest.content) as Record<string, unknown>;
       const str = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : undefined);
-      return { name: str(m.display_name) ?? str(m.name), about: str(m.about), picture: str(m.picture) };
+      return { name: str(m.display_name) ?? str(m.name), about: str(m.about), picture: str(m.picture), nip05: str(m.nip05) };
     } catch {
       return {};
     }

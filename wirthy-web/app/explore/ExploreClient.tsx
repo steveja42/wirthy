@@ -4,10 +4,11 @@
 
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { EMPTY_FILTERS, applyFeedQuery, npubToHex, parseFeedQuery, relayScope, scopeKey, type FeedFilters } from '@/lib/feed-url';
-import { authorDisplayName } from '@/lib/nostr/profiles';
+import { authorDisplayName, type AuthorProfile } from '@/lib/nostr/profiles';
+import { readSsrAuthor, withSsrAuthor } from '@/lib/nostr/ssr-author';
 import TopBar from '@/components/chrome/TopBar';
 import CastFeed from '@/components/feed/CastFeed';
 import SignInModal from '@/components/auth/SignInModal';
@@ -25,6 +26,8 @@ import { useReadCasts } from '@/hooks/useReadCasts';
 interface UrlView {
   filters: FeedFilters;
   locked: string | null;
+  /** The publisher identity the share-page function embedded (publisher pages only). */
+  ssrAuthor: AuthorProfile | null;
 }
 
 export default function ExploreClient() {
@@ -40,7 +43,9 @@ export default function ExploreClient() {
   const { clips } = useCastFeed(view ? scopeKey(relayScope(view.filters)) : null);
   const { extensionPresent } = useBridgeAuth();
   const follows = useFollowList(auth.pubkey);
-  const authors = useAuthorProfiles(clips);
+  const liveAuthors = useAuthorProfiles(clips);
+  const ssrAuthor = view?.ssrAuthor ?? null;
+  const authors = useMemo(() => withSsrAuthor(liveAuthors, ssrAuthor), [liveAuthors, ssrAuthor]);
   const { read, markRead } = useReadCasts();
   const [signInOpen, setSignInOpen] = useState(false);
   const publisherName = locked ? authorDisplayName(locked, authors.get(locked)) : null;
@@ -51,8 +56,13 @@ export default function ExploreClient() {
     const lockedHex = pathNpub ? npubToHex(decodeURIComponent(pathNpub)) : null;
     if (pathNpub && !lockedHex) { router.replace('/explore' + search); return; }
     const parsed = parseFeedQuery(search);
+    const embedded = lockedHex ? readSsrAuthor() : null;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time read of the URL, unavailable at prerender
-    setView({ filters: lockedHex ? { ...parsed, authors: [lockedHex] } : parsed, locked: lockedHex });
+    setView({
+      filters: lockedHex ? { ...parsed, authors: [lockedHex] } : parsed,
+      locked: lockedHex,
+      ssrAuthor: embedded?.pubkey === lockedHex ? embedded : null,
+    });
   }, [router]);
 
   // Mirror every filter change into the address bar so the view is a shareable link.
@@ -74,7 +84,7 @@ export default function ExploreClient() {
       router.push('/explore' + applyFeedQuery('', next));
       return;
     }
-    setView({ filters: next, locked });
+    setView({ filters: next, locked, ssrAuthor });
   };
 
   // The brand mark is a <Link> to /explore in TopBar, so this only handles the

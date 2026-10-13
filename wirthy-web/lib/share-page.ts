@@ -14,6 +14,8 @@ import { npubEncode } from 'nostr-tools/nip19';
 import { SIGNAL_LEVELS, CATEGORIES } from '@/lib/constants';
 import type { ClipData } from '@/lib/types';
 import type { PublisherProfile } from '@/lib/nostr/cast-ref';
+import type { AuthorProfile } from '@/lib/nostr/profiles';
+import { SSR_AUTHOR_ID } from '@/lib/nostr/ssr-author';
 
 export const SITE = 'https://wirthy.app';
 export const DEFAULT_OG_IMAGE = `${SITE}/og/default.png`;
@@ -30,6 +32,23 @@ export interface ShareMeta {
   /** Pre-escaped HTML for the #ssr-cast placeholder ('' leaves it empty). */
   bodyHtml: string;
   jsonLd?: Record<string, unknown>;
+  /** Embedded for the client (lib/nostr/ssr-author.ts) so the byline needn't wait on relays. */
+  author?: AuthorProfile;
+}
+
+/** The author's display label: a verified NIP-05, else their kind-0 name, else a short npub. */
+function authorLabelOf(pubkey: string, author?: AuthorProfile): string {
+  if (author?.verified && author.nip05) return author.nip05;
+  return author?.name?.trim() || shortNpub(pubkey);
+}
+
+/** The embeddable identity: pubkey + name + a nip05 only if it verified. */
+export function authorIdentity(pubkey: string, profile: PublisherProfile | null, nip05Verified: boolean): AuthorProfile {
+  return {
+    pubkey,
+    ...(profile?.name ? { name: profile.name } : {}),
+    ...(profile?.nip05 && nip05Verified ? { nip05: profile.nip05, verified: true } : {}),
+  };
 }
 
 export function escapeHtml(s: string): string {
@@ -66,15 +85,15 @@ function excerptOf(clip: ClipData): string {
 export interface CastShareInput {
   clip: ClipData;
   canonicalPath: string;
-  authorName?: string;
+  author?: AuthorProfile;
   isTestAuthor: boolean;
 }
 
-export function castShareMeta({ clip, canonicalPath, authorName, isTestAuthor }: CastShareInput): ShareMeta {
+export function castShareMeta({ clip, canonicalPath, author, isTestAuthor }: CastShareInput): ShareMeta {
   const { capture, evaluation } = clip;
   const signal = evaluation.signal;
   const note = capture.note?.trim();
-  const by = authorName ?? (capture.authorPubkey ? shortNpub(capture.authorPubkey) : 'someone');
+  const by = capture.authorPubkey ? authorLabelOf(capture.authorPubkey, author) : 'someone';
   const category = CATEGORIES[evaluation.category]?.label ?? evaluation.category;
   const excerpt = excerptOf(clip);
   const canonical = `${SITE}${canonicalPath}`;
@@ -121,11 +140,13 @@ export function castShareMeta({ clip, canonicalPath, authorName, isTestAuthor }:
     index: Boolean(note || signal) && !isTestAuthor,
     bodyHtml,
     jsonLd,
+    author,
   };
 }
 
-export function publisherShareMeta(pubkey: string, profile: PublisherProfile | null): ShareMeta {
-  const name = profile?.name ?? shortNpub(pubkey);
+export function publisherShareMeta(pubkey: string, profile: PublisherProfile | null, nip05Verified = false): ShareMeta {
+  const author = authorIdentity(pubkey, profile, nip05Verified);
+  const name = authorLabelOf(pubkey, author);
   return {
     title: `Posts by ${name} — Wirthy`,
     description: truncate(profile?.about || `Posts ${name} clipped, rated and published with Wirthy.`, DESCRIPTION_MAX),
@@ -134,6 +155,7 @@ export function publisherShareMeta(pubkey: string, profile: PublisherProfile | n
     ogType: 'profile',
     index: false,
     bodyHtml: '',
+    author,
   };
 }
 
@@ -159,12 +181,16 @@ export function injectShareMeta(shell: string, meta: ShareMeta): string {
     `<meta property="og:site_name" content="Wirthy"/>`,
     `<meta property="og:type" content="${meta.ogType}"/>`,
     `<meta property="og:image" content="${attr(meta.image)}"/>`,
-    `<meta name="twitter:card" content="${meta.image === DEFAULT_OG_IMAGE ? 'summary_large_image' : 'summary'}"/>`,
+    // Large for a post (article images are wide); small for a profile, whose image is a square avatar.
+    `<meta name="twitter:card" content="${meta.ogType === 'profile' && meta.image !== DEFAULT_OG_IMAGE ? 'summary' : 'summary_large_image'}"/>`,
     `<meta name="twitter:title" content="${attr(meta.title)}"/>`,
     `<meta name="twitter:description" content="${attr(meta.description)}"/>`,
     `<meta name="twitter:image" content="${attr(meta.image)}"/>`,
     meta.jsonLd
       ? `<script type="application/ld+json">${JSON.stringify(meta.jsonLd).replace(/</g, '\\u003c')}</script>`
+      : '',
+    meta.author
+      ? `<script type="application/json" id="${SSR_AUTHOR_ID}">${JSON.stringify(meta.author).replace(/</g, '\\u003c')}</script>`
       : '',
   ].join('');
 

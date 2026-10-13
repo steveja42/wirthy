@@ -9,18 +9,19 @@
 // Any failure returns the shell unmodified — the page still works, it just previews generically.
 // See wirthy-web/CLAUDE.md → Share pages.
 
-import { decodeCastRef, encodeCastRef, fetchCast, fetchProfile } from '../../lib/nostr/cast-ref.ts';
+import { decodeCastRef, encodeCastRef, fetchCast, fetchProfile, verifyNip05, type PublisherProfile } from '../../lib/nostr/cast-ref.ts';
 import { parseEvent } from '../../lib/nostr/parse.ts';
 import { DEFAULT_RELAYS } from '../../lib/constants.ts';
 import { TEST_CAST_PUBKEY } from '../../lib/nostr/test-cast-author.ts';
 import { npubToHex } from '../../lib/feed-url.ts';
-import { castShareMeta, injectShareMeta, publisherShareMeta, type ShareMeta } from '../../lib/share-page.ts';
+import { authorIdentity, castShareMeta, injectShareMeta, publisherShareMeta, type ShareMeta } from '../../lib/share-page.ts';
 
 // Minimal local shape for the v2-runtime type we touch (see feedback.mts for why).
 interface Config { path: string[]; preferStatic?: boolean }
 
 // The relays answer in ~200ms; this bounds a slow one so a preview bot isn't kept waiting.
 const RELAY_TIMEOUT_MS = 2_500;
+const NIP05_TIMEOUT_MS = 1_500;
 
 // CDN caching. A note id names one immutable event; an naddr (replaceable long-form) or a
 // profile can change, so it is revalidated hourly. Misses are retried after a minute.
@@ -40,18 +41,26 @@ function respond(html: string, cdnCache: string, index: boolean): Response {
   });
 }
 
+// The author's kind-0 plus whether its NIP-05 checks out, so the page can show the NIP-05
+// from first paint. A failed or slow check just means the name is shown instead.
+async function lookupAuthor(pubkey: string, relays: string[]): Promise<{ profile: PublisherProfile | null; verified: boolean }> {
+  const profile = await fetchProfile(pubkey, relays, RELAY_TIMEOUT_MS).catch(() => null);
+  const verified = profile?.nip05 ? await verifyNip05(pubkey, profile.nip05, NIP05_TIMEOUT_MS) : false;
+  return { profile, verified };
+}
+
 async function castMeta(id: string, relays: string[]): Promise<{ meta: ShareMeta; immutable: boolean } | null> {
   const ref = decodeCastRef(id);
   if (!ref) return null;
   const found = await fetchCast(ref, relays, RELAY_TIMEOUT_MS);
   if (!found) return null;
   const clip = parseEvent(found.event);
-  const profile = await fetchProfile(found.event.pubkey, relays, RELAY_TIMEOUT_MS).catch(() => null);
+  const { profile, verified } = await lookupAuthor(found.event.pubkey, relays);
   return {
     meta: castShareMeta({
       clip,
       canonicalPath: `/c/${encodeCastRef(found.canonical)}`,
-      authorName: profile?.name,
+      author: authorIdentity(found.event.pubkey, profile, verified),
       isTestAuthor: found.event.pubkey === TEST_CAST_PUBKEY,
     }),
     immutable: found.canonical.type === 'note',
@@ -61,7 +70,8 @@ async function castMeta(id: string, relays: string[]): Promise<{ meta: ShareMeta
 async function publisherMeta(npub: string, relays: string[]): Promise<ShareMeta | null> {
   const pubkey = npubToHex(npub);
   if (!pubkey) return null;
-  return publisherShareMeta(pubkey, await fetchProfile(pubkey, relays, RELAY_TIMEOUT_MS).catch(() => null));
+  const { profile, verified } = await lookupAuthor(pubkey, relays);
+  return publisherShareMeta(pubkey, profile, verified);
 }
 
 export default async function handler(req: Request): Promise<Response> {

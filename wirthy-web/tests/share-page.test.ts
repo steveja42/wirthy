@@ -32,6 +32,7 @@ vi.mock('nostr-tools', async (orig) => ({
 }));
 
 const { castShareMeta, injectShareMeta, publisherShareMeta, DEFAULT_OG_IMAGE } = await import('@/lib/share-page');
+const { verifyNip05 } = await import('@/lib/nostr/cast-ref');
 const { default: handler } = await import('../netlify/functions/share-page.mts');
 const { TEST_CAST_PUBKEY } = await import('@/lib/nostr/test-cast-author');
 
@@ -57,7 +58,7 @@ const LONG = finalizeEvent({
 const NOTE = finalizeEvent({ kind: 1, created_at: 100, content: 'teaser', tags: [['a', `30023:${PK}:${D}`], ['title', 'Long Title'], ...evalTags('Worthwhile')] }, SK);
 const BARE = finalizeEvent({ kind: 1, created_at: 100, content: 'Bare\nhttps://example.com/a', tags: [['title', 'Bare Bookmark'], ...evalTags()] }, SK);
 const RATED = finalizeEvent({ kind: 1, created_at: 100, content: 'x', tags: [['title', 'Rated Bookmark'], ...evalTags('Masterpiece')] }, SK);
-const PROFILE = finalizeEvent({ kind: 0, created_at: 100, content: JSON.stringify({ name: 'Alice', about: 'Reads things.', picture: 'https://img.example/a.png' }), tags: [] }, SK);
+const PROFILE = finalizeEvent({ kind: 0, created_at: 100, content: JSON.stringify({ name: 'Alice', about: 'Reads things.', picture: 'https://img.example/a.png', nip05: 'alice@example.com' }), tags: [] }, SK);
 
 function clipOf(over: Partial<ClipData['capture']>, evaluation: Partial<ClipData['evaluation']> = {}): ClipData {
   return {
@@ -107,6 +108,27 @@ describe('castShareMeta + injectShareMeta', () => {
     expect(meta({}).jsonLd).toBeUndefined();
   });
 
+  it('a hostile kind-0 name cannot close the embedded identity script', () => {
+    const name = '</script><script>alert(1)</script>';
+    const html = injectShareMeta(SHELL, castShareMeta({
+      clip: clipOf({ title: 'T' }), canonicalPath: '/c/x', isTestAuthor: false, author: { pubkey: PK, name },
+    }));
+    expect(html).not.toContain('<script>alert');
+    const embedded = /id="ssr-author">([^<]*)<\/script>/.exec(html)?.[1];
+    expect(JSON.parse(embedded ?? 'null').name).toBe(name);
+  });
+
+  it('only verifies a NIP-05 on a plain https hostname', async () => {
+    const fetchSpy = vi.fn(async () => Response.json({ names: { a: PK } }));
+    vi.stubGlobal('fetch', fetchSpy);
+    for (const bad of ['a@127.0.0.1', 'a@localhost', 'a@example.com:8080', 'a@[::1]', 'no-at-sign']) {
+      expect(await verifyNip05(PK, bad)).toBe(false);
+    }
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(await verifyNip05(PK, 'a@example.com')).toBe(true);
+    vi.unstubAllGlobals();
+  });
+
   it('uses an https image only, else the default card', () => {
     const img = (thumbnail: string) => castShareMeta({ clip: clipOf({ thumbnail }), canonicalPath: '/c/x', isTestAuthor: false }).image;
     expect(img('https://cdn.example/h.jpg')).toBe('https://cdn.example/h.jpg');
@@ -123,11 +145,17 @@ describe('castShareMeta + injectShareMeta', () => {
 
 describe('share-page handler', () => {
   let shellOk = true;
+  let nip05Names: Record<string, string> = {};
   beforeEach(() => {
     relayEvents = [NOTE, LONG, BARE, RATED, PROFILE];
     relayDown = false;
     shellOk = true;
-    vi.stubGlobal('fetch', vi.fn(async () => (shellOk ? new Response(SHELL, { status: 200 }) : new Response('nope', { status: 404 }))));
+    nip05Names = { alice: PK };
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input instanceof Request ? input.url : input);
+      if (url.startsWith('https://example.com/.well-known/nostr.json')) return Response.json({ names: nip05Names });
+      return shellOk ? new Response(SHELL, { status: 200 }) : new Response('nope', { status: 404 });
+    }));
     vi.spyOn(console, 'error').mockImplementation(() => {});
   });
   afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
@@ -139,7 +167,7 @@ describe('share-page handler', () => {
     const html = await res.text();
     expect(res.status).toBe(200);
     expect(html).toContain(`href="https://wirthy.app/c/${naddrEncode({ kind: 30023, pubkey: PK, identifier: D })}"`);
-    expect(html).toContain('Posted by Alice');
+    expect(html).toContain('Posted by alice@example.com');
     expect(html).toContain('A short summary.');
     expect(html).not.toContain('SECRET ARTICLE BODY');
     expect(res.headers.get('x-robots-tag')).toBeNull();
@@ -184,10 +212,30 @@ describe('share-page handler', () => {
     expect((await get(`/c/${noteEncode(RATED.id)}`)).status).toBe(503);
   });
 
+  it('embeds the verified identity so the client can show the NIP-05 at once', async () => {
+    const html = await (await get(`/c/${noteEncode(RATED.id)}`)).text();
+    const embedded = /<script type="application\/json" id="ssr-author">([^<]*)<\/script>/.exec(html)?.[1];
+    expect(JSON.parse(embedded ?? 'null')).toEqual({ pubkey: PK, name: 'Alice', nip05: 'alice@example.com', verified: true });
+  });
+
+  it('falls back to the kind-0 name when the NIP-05 does not resolve to the author', async () => {
+    nip05Names = { alice: 'e'.repeat(64) };
+    const html = await (await get(`/c/${noteEncode(RATED.id)}`)).text();
+    expect(html).toContain('Posted by Alice');
+    expect(html).not.toContain('alice@example.com');
+    const embedded = /id="ssr-author">([^<]*)</.exec(html)?.[1];
+    expect(JSON.parse(embedded ?? 'null')).toEqual({ pubkey: PK, name: 'Alice' });
+  });
+
+  it('uses the large card for a post, and the small one for a profile avatar', async () => {
+    expect(await (await get(`/c/${noteEncode(RATED.id)}`)).text()).toContain('<meta name="twitter:card" content="summary_large_image"/>');
+    expect(await (await get(`/p/${npubEncode(PK)}`)).text()).toContain('<meta name="twitter:card" content="summary"/>');
+  });
+
   it('previews a publisher page from their profile', async () => {
     const res = await get(`/p/${npubEncode(PK)}`);
     const html = await res.text();
-    expect(html).toContain('<title>Posts by Alice — Wirthy</title>');
+    expect(html).toContain('<title>Posts by alice@example.com — Wirthy</title>');
     expect(html).toContain('content="https://img.example/a.png"');
     expect(res.headers.get('x-robots-tag')).toBe('noindex');
   });
