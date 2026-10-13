@@ -417,7 +417,18 @@ export function createResourceNoteEvent(
   // still emitted below (clients/web-app render the card heading from it).
   const omitTitleLine = isTweet && !!body && body.length > 0;
 
+  // Cast a real URL as the `image` tag — never a data: URI. Article/full-page
+  // captures inline the hero image as base64 for the private clip render;
+  // publishing that inline pushes the event past relay 64 KB limits. Data URIs
+  // stay in IndexedDB. (See pickImageUrl.)
+  const imageUrl = pickImageUrl(capture);
+
   const lines = omitTitleLine ? [capture.url] : [capture.title, capture.url];
+  // Kind-1 clients (Primal, Nostrudel) show media only from content URLs; the `image` tag is NIP-23's.
+  // Skipped with a long-form: clients already show its image in the naddr preview card.
+  if (imageUrl && !longFormRef && !body?.toLowerCase().includes(urlBase(imageUrl))) {
+    lines.push('', imageUrl);
+  }
   if (body && body.length > 0) {
     lines.push('', body);
   }
@@ -426,11 +437,6 @@ export function createResourceNoteEvent(
   if (capture.title && capture.title.trim().length > 0) {
     tags.push(['title', capture.title]);
   }
-  // Cast a real URL as the `image` tag — never a data: URI. Article/full-page
-  // captures inline the hero image as base64 for the private clip render;
-  // publishing that inline pushes the event past relay 64 KB limits. Data URIs
-  // stay in IndexedDB. (See pickImageUrl.)
-  const imageUrl = pickImageUrl(capture);
   if (imageUrl) {
     tags.push(['image', imageUrl]);
   }

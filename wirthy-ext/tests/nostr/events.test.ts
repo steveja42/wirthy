@@ -254,11 +254,29 @@ describe('Nostr event factory', () => {
       // One imeta tag per image, each carrying "url <URL>".
       const imeta = extractTagValues(ev, 'imeta');
       expect(imeta).toEqual(photos.map((u) => `url ${u}`));
-      // URLs are NOT dumped into the content — no bare-URL-only lines.
+      // Only the hero reaches the content (kind-1 clients render media from content URLs only).
       const bareUrlLines = ev.content.split('\n').filter((l) => /^https:\/\/pbs\.twimg/.test(l.trim()));
-      expect(bareUrlLines).toEqual([]);
+      expect(bareUrlLines).toEqual([photos[0]]);
       // First image doubles as the legacy image tag.
       expect(extractTagValue(ev, 'image')).toBe(photos[0]);
+    });
+
+    it('does not repeat the hero URL when the body already carries it', () => {
+      const capture: Capture = {
+        ...artFx.capture,
+        bodyText: `Tweet text\n\n${photos[0]}`,
+        thumbnailUrl: photos[0],
+        imageUrls: photos,
+      };
+      const ev = createResourceNoteEvent(capture, artFx.evaluation, capture.bodyText);
+      expect(ev.content.split(photos[0]).length - 1).toBe(1);
+    });
+
+    it('leaves the hero out of the content when a long-form preview will show it', () => {
+      const capture: Capture = { ...artFx.capture, thumbnailUrl: photos[0], imageUrls: photos };
+      const ref = { coord: `30023:${'f'.repeat(64)}:x`, naddr: 'naddr1test' };
+      const ev = createResourceNoteEvent(capture, artFx.evaluation, 'Prose.', undefined, ref);
+      expect(ev.content).not.toContain(photos[0]);
     });
 
     it('never inlines a data: URI as an imeta url (event-size guard)', () => {
