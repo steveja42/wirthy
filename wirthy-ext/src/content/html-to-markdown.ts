@@ -15,6 +15,7 @@
 
 import TurndownService from 'turndown';
 import { strikethrough } from 'turndown-plugin-gfm';
+import { CAST_INLINE_BODY_MAX_CHARS } from '@/shared/nostr/events';
 
 // dx-* marker classes that are pure page chrome with no prose value in a
 // long-form article. Collapsing them to text would leak raw icon glyphs, so we
@@ -754,4 +755,93 @@ export function htmlToMarkdown(html: string): string {
   const md = getService().turndown(source);
   // Collapse 3+ blank lines to a single blank line separator and trim edges.
   return md.replace(/\n{3,}/g, '\n\n').trim();
+}
+
+// Card chrome the rules above regenerate (bold byline, stats line). It is not
+// authored structure, so it must not by itself justify a long-form. Bylines and
+// zaps are also left out of the text-coverage check; a footer is not, since the
+// long-form prints its date and counts.
+const BYLINE_CHROME_SEL =
+  '.dx-header, .dx-author, .dx-byline, .dx-byline-col, .dx-byline-meta, .dx-zaps-row, .dx-avatar, .tweet-header';
+
+export interface LongFormGateInput {
+  html: string;
+  title: string;
+  url: string;
+  bodyText?: string;     // what the kind-1 inlines; undefined for a selection
+  imageUrls?: string[];  // what the kind-1 carries as imeta
+}
+
+const textOf = (el: Element) => (el.textContent ?? '').replace(/\s+/g, ' ').trim();
+const normWords = (s: string) => s.toLowerCase().replace(/[\s\p{P}]+/gu, ' ').trim();
+const bareUrl = (s: string) => s.trim().replace(/^https?:\/\//i, '').replace(/^www\./i, '').replace(/\/+$/, '');
+
+/**
+ * Why a companion kind-30023 must be published, or null when the kind-1 alone
+ * carries the cast without loss — a flat social post, which as a long-form only
+ * clutters NIP-23 readers. Conservative: anything markdown can express that the
+ * plain-text kind-1 cannot (or text the kind-1 omits) keeps the long-form.
+ */
+export function longFormReason(input: LongFormGateInput): string | null {
+  const { bodyText } = input;
+  if (bodyText !== undefined && bodyText.length > CAST_INLINE_BODY_MAX_CHARS) return 'size';
+  let root: HTMLElement;
+  try {
+    root = new DOMParser().parseFromString(`<body>${input.html}</body>`, 'text/html').body;
+  } catch {
+    return 'unparsed';
+  }
+  // Click-to-play on a cast comes only from the markdown's linked poster.
+  if (root.querySelector('.tweet-video')) return 'video';
+  if (root.querySelector('.tweet-reply, .dx-reply')) return 'replies';
+  // proseText leaves an embedded post card out of bodyText entirely.
+  if (root.querySelector('.tweet-card--embed')) return 'embedded post';
+  root.querySelectorAll(`${BYLINE_CHROME_SEL}, svg, style, script, noscript`).forEach((e) => e.remove());
+  // A stats row with a content link is a track/product list, not chrome; a
+  // counts-only row converts to bare numbers, so its labels need no coverage.
+  root.querySelectorAll<HTMLElement>('.dx-stats').forEach((e) => { if (!hasContentLink(e)) e.remove(); });
+  const coverageText: string[] = [];
+  const walker = root.ownerDocument.createTreeWalker(root, 4 /* SHOW_TEXT */);
+  for (let n = walker.nextNode(); n; n = walker.nextNode()) coverageText.push(n.textContent ?? '');
+  root.querySelectorAll('.tweet-footer').forEach((e) => e.remove());
+
+  const any = (sel: string, ok: (el: Element) => boolean = (el) => !!textOf(el)) =>
+    Array.from(root.querySelectorAll(sel)).some(ok);
+  const title = normWords(input.title);
+  if (any('h1, h2, h3, h4, h5, h6', (h) => !!textOf(h) && normWords(textOf(h)) !== title)) return 'heading';
+  // A quoted post card reaches bodyText only as literal "> " lines.
+  if (any('blockquote, .dx-quote, .dx-quote-frag, .tweet-quote')) return 'quote';
+  if (any('li')) return 'list';
+  if (any('pre, code')) return 'code';
+  if (any('table', (t) => Array.from(t.querySelectorAll('td, th')).filter((c) => textOf(c)).length >= 2)) return 'table';
+  if (root.querySelector('hr')) return 'rule';
+  if (any('strong, b, em, i, mark, del, s', (e) => !!textOf(e) && !e.closest('h1, h2, h3, h4, h5, h6'))) return 'emphasis';
+  const page = bareUrl(input.url.split('#')[0]);
+  if (any('a[href]', (a) => {
+    const t = textOf(a);
+    const href = a.getAttribute('href') ?? '';
+    if (!t || !/^https?:/i.test(href) || /^[@#$]/.test(t)) return false;
+    // A bare URL is autolinked by every client; a truncated display URL is not.
+    return bareUrl(t) !== bareUrl(href) && bareUrl(href.split('#')[0]) !== page;
+  })) return 'link';
+  // proseText collapses whitespace, so a <br> survives only where bodyText kept
+  // its own line breaks (tweets do); a selection's quote text keeps them too.
+  if (bodyText !== undefined && root.querySelector('br') && !/[^\n]\n[^\n]/.test(bodyText)) return 'line breaks';
+  const carried = new Set(input.imageUrls ?? []);
+  if (any('img', (img) => {
+    const el = img as HTMLElement;
+    if (emojiFromImage(el) || isChromeImage(el)) return false;
+    const real = [el.getAttribute('data-dx-src'), el.getAttribute('src')].find((u) => !!u && /^https?:/i.test(u));
+    return !!real && !carried.has(real);
+  })) return 'images';
+
+  if (bodyText !== undefined) {
+    const have = new Set(normWords(bodyText).split(' '));
+    const words = normWords(coverageText.join(' ')).split(' ').filter(Boolean);
+    const missing = words.filter((w) => !have.has(w)).length;
+    // One word of slack for bodyText glue ("catalysta"); a post is short enough
+    // that a dropped count or date is only a word or two.
+    if (missing > Math.max(1, words.length * 0.02)) return 'text missing from note';
+  }
+  return null;
 }

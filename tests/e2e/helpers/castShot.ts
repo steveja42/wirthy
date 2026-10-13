@@ -13,7 +13,7 @@
 
 import type { Page } from '@playwright/test';
 import { rmSync } from 'node:fs';
-import { buildLongFormCast } from './castFromCapture';
+import { buildPublicCast } from './castFromCapture';
 import { renderCastAndScreenshot } from './renderCast';
 
 export interface CastShotOptions {
@@ -45,9 +45,9 @@ export interface CastShotOptions {
  * @param capture      The capture object returned by the test capture bridge.
  * @param screenshotPath Where to write the cast screenshot.
  *
- * Returns the cast body's innerText (for optional assertions), or null when the
- * capture has no castable long-form body (bookmark / empty body) — in which case
- * no screenshot is written and the caller can simply move on.
+ * Renders the long-form, or the kind-1 when the capture is flat and publishes
+ * none (longFormReason). Returns the cast body's innerText (for optional
+ * assertions).
  */
 export async function castShot(
   capturePage: Page,
@@ -55,8 +55,9 @@ export async function castShot(
   screenshotPath: string,
   opts: CastShotOptions = {},
 ): Promise<string | null> {
-  const event = await buildLongFormCast(capturePage, capture, opts.evaluation);
-  if (!event) return null;
+  const { event, kind } = await buildPublicCast(capturePage, capture, opts.evaluation);
+  // eslint-disable-next-line no-console
+  if (kind === 1) console.log(`[castShot] no long-form (flat capture) — rendering the kind-1: ${screenshotPath}`);
   return renderCastAndScreenshot(event, {
     rowText: opts.rowText ?? capture.title,
     screenshotPath,

@@ -10,6 +10,7 @@ import {
   extractTagValues,
   setClientVersion,
   DEFAULT_CLIENT_VERSION,
+  htmlToQuoteText,
 } from '@/shared/nostr/events';
 import type { Capture, Evaluation, ClipFormat } from '@/shared/types';
 import type { EventTemplate, NostrEvent } from 'nostr-tools/core';
@@ -102,7 +103,8 @@ describe('Nostr event factory', () => {
         // "Wirthy: …" content line.
         expect(firstLine).not.toMatch(/^Wirthy:/);
         if (fx.capture.format === 'selection') {
-          expect(firstLine).toBe(`> "${fx.capture.selectionText ?? ''}"`);
+          expect(template.content.startsWith(`> "${htmlToQuoteText(fx.capture.selectionText ?? '')}"`)).toBe(true);
+          expect(firstLine).not.toMatch(/<\w/);
         } else {
           expect(firstLine).toBe(fx.capture.title);
         }

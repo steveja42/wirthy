@@ -312,6 +312,27 @@ function withSnippet(content: string, snippet?: string): string {
   return `${snippet}\n\n${withCta}`;
 }
 
+const ENTITIES: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
+
+// selectionText is sanitised HTML, but a kind-1's content is plain text in
+// every client. Regex rather than DOM: this runs in the service worker.
+export function htmlToQuoteText(html: string): string {
+  return html
+    .replace(/<(svg|style|script|noscript)\b[\s\S]*?<\/\1>/gi, '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|div|li|h[1-6]|blockquote|pre|tr|ul|ol|table|figure|section|article|header|footer)>/gi, '\n\n')
+    .replace(/<\/(span|a|strong|b|em|i|time)>(?=<)/gi, ' ') // adjacent inline leaves glue otherwise
+    .replace(/<[^>]*>/g, '')
+    .replace(/&(#x[\da-f]+|#\d+|[a-z]+);/gi, (m, e: string) => {
+      if (e[0] !== '#') return ENTITIES[e.toLowerCase()] ?? m;
+      const code = e[1].toLowerCase() === 'x' ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10);
+      return Number.isFinite(code) ? String.fromCodePoint(code) : m;
+    })
+    .split('\n').map((l) => l.replace(/[ \t ]+/g, ' ').trim()).join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 /**
  * Create a Note event (Kind 1) for selection captures (quoted text inline).
  * `snippet` (optional) is the "Wirthy by …" attribution prepended to content.
@@ -330,8 +351,9 @@ export function createQuoteNoteEvent(
 
   // The snippet carries the rating/category attribution — no "Wirthy: …"
   // summary line here.
+  // The `quote` TAG keeps the HTML: the web app renders the excerpt from it.
   const contentLines = [
-    `> "${quotedText}"`,
+    `> "${htmlToQuoteText(quotedText)}"`,
     '',
     capture.url,
   ];

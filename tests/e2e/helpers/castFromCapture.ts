@@ -103,6 +103,21 @@ export async function buildLongFormCast(
 }
 
 /**
+ * Build + sign the event the public feed shows for this capture: the long-form
+ * when one is published, else the kind-1 (a flat post publishes no long-form).
+ */
+export async function buildPublicCast(
+  page: Page,
+  capture: unknown,
+  evaluation?: unknown,
+): Promise<{ event: NostrEvent; kind: 1 | 30023 }> {
+  const { noteTemplate, longFormTemplate } = await buildCastTemplates(page, capture, evaluation);
+  return longFormTemplate
+    ? { event: finalizeEvent(longFormTemplate, TEST_CAST_SECRET_KEY), kind: 30023 }
+    : { event: finalizeEvent(noteTemplate, TEST_CAST_SECRET_KEY), kind: 1 };
+}
+
+/**
  * Build + sign the kind-1 note cast (always present, even for bookmarks). Useful
  * when a capture has no long-form companion but you still want to render the
  * note the public feed shows.

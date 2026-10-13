@@ -1662,7 +1662,7 @@ async function extractTweet(
     })
     .filter(Boolean)
     .join('  ·  ');
-  const metaLine = [statsSummary, dateText].filter(Boolean).join('  ·  ');
+  const metaLine = [statsSummary, dateText, viewsText && `${viewsText} Views`].filter(Boolean).join('  ·  ');
   // Quoted (embedded) tweet — render its author + text as a blockquote so the
   // cast note carries the older post too, not just the outer tweet.
   const quotedBlock = quotedCastMeta
@@ -2466,12 +2466,15 @@ async function extractFacebookPost(
   // `data-ad-rendering-role="like_button|comment_button|share_button"` is
   // Facebook's own marker and is LANGUAGE-INDEPENDENT; the aria-label lookup
   // is the fallback, and only works on an English UI. Prefer the role.
-  const FB_STATS: Array<{ label: string; role: string; icon: string }> = [
-    { label: 'Like', role: 'like_button', icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>' },
-    { label: 'Comment', role: 'comment_button', icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>' },
-    { label: 'Share', role: 'share_button', icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92-1.31-2.92-2.92-2.92z"/></svg>' },
+  const FB_STATS: Array<{ label: string; role: string; emoji: string; icon: string }> = [
+    { label: 'Like', role: 'like_button', emoji: '❤️', icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>' },
+    { label: 'Comment', role: 'comment_button', emoji: '💬', icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>' },
+    { label: 'Share', role: 'share_button', emoji: '🔁', icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92-1.31-2.92-2.92-2.92z"/></svg>' },
   ];
-  const statItemsHtml = FB_STATS.map(({ label, role, icon }) => {
+  // Plain "❤️ 26" summaries for bodyText, as the tweet path's metaLine does: a
+  // flat post's kind-1 is published alone, so it must carry the counts too.
+  const statSummary: string[] = [];
+  const statItemsHtml = FB_STATS.map(({ label, role, emoji, icon }) => {
     // Skip any action bar belonging to the SHARED card: on a share the
     // original's buttons can precede the sharer's in document order, so a
     // plain querySelector would report the original post's engagement as if
@@ -2485,6 +2488,7 @@ async function extractFacebookPost(
       ?? null;
     const count = btn ? findStatCount(btn) : null;
     if (!count) return '';
+    statSummary.push(`${emoji} ${count}`);
     const safeCount = count.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     return `<span class="tweet-stat" aria-label="${label}">${icon}<span class="tweet-stat-count">${safeCount}</span></span>`;
   }).filter(Boolean);
@@ -2618,7 +2622,8 @@ async function extractFacebookPost(
     title: base.title,
     format: 'article',
     bodyHtml,
-    bodyText: [displayName, plainText, quotedText].filter(Boolean).join('\n\n'),
+    bodyText: [displayName, plainText, quotedText, [...statSummary, dateText].filter(Boolean).join('  ·  ')]
+      .filter(Boolean).join('\n\n'),
     thumbnail: null,
     thumbnailUrl: rawImageUrls[0] ?? null,
     imageUrls: rawImageUrls.length > 0 ? rawImageUrls : undefined,
