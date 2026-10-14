@@ -30,7 +30,13 @@ export function useFollowMutation(follows: FollowProfile[], extensionPresent: bo
   const [optimistic, setOptimistic] = useState<Map<string, boolean>>(new Map());
   const [lastError, setLastError] = useState<FollowMutationError | null>(null);
 
-  useEffect(() => {
+  // Prune during render when the base set changes (React's "adjust state when a
+  // prop changes" pattern), not in an effect. Keyed by CONTENT: a caller passing
+  // a fresh but equal array each render must not re-trigger it (that loops).
+  const baseKey = useMemo(() => [...baseFollowing].sort().join(','), [baseFollowing]);
+  const [prunedFor, setPrunedFor] = useState(baseKey);
+  if (prunedFor !== baseKey) {
+    setPrunedFor(baseKey);
     setOptimistic((prev) => {
       if (prev.size === 0) return prev;
       let changed = false;
@@ -43,7 +49,7 @@ export function useFollowMutation(follows: FollowProfile[], extensionPresent: bo
       }
       return changed ? next : prev;
     });
-  }, [baseFollowing]);
+  }
 
   useEffect(() => {
     return subscribeBridge((msg) => {
