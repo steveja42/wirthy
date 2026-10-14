@@ -12,13 +12,26 @@
 // pass runs on all five capture paths, AFTER substituteEmbeddedTweets so
 // platform.twitter.com iframes stay on the richer tweet-card path.
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { captureContext } from '@/content/capture';
 import { loadFixture } from '../helpers/loadFixture';
 
 const URL_ = 'https://example.com/post/video-embeds';
+const ODYSEE_LBRY = 'lbry://@corbettreport#0/solutionswatch-unvandalism#1';
+const ODYSEE_THUMB = 'https://thumbs.odycdn.com/7a035214b2d2fcbb0b291abeb877f267.webp';
 
 describe('video embed substitution', () => {
+  // Odysee's resolve API, shaped as measured; the lookup must never reach the network.
+  let odyseeBodies: string[] = [];
+  beforeEach(() => {
+    odyseeBodies = [];
+    vi.stubGlobal('fetch', vi.fn(async (_url: string, init?: RequestInit) => {
+      odyseeBodies.push(String(init?.body ?? ''));
+      return new Response(JSON.stringify({ result: { [ODYSEE_LBRY]: { value: { thumbnail: { url: ODYSEE_THUMB } } } } }));
+    }));
+  });
+  afterEach(() => { vi.unstubAllGlobals(); });
+
   for (const smartArticleDetection of [false, true]) {
     describe(`smartArticleDetection=${smartArticleDetection}`, () => {
       const capture = async () => {
@@ -62,6 +75,17 @@ describe('video embed substitution', () => {
         expect(html, 'rumble label').toContain('Rumble video');
         expect(html, 'twitch label').toContain('Twitch video');
         expect(html, 'link card class').toContain('dx-video-link');
+      });
+
+      it('builds an Odysee poster card from a percent-encoded embed src', async () => {
+        // corbettreport.com: `/%24/embed/…` never matched `/$/embed/`, so the
+        // iframe was stripped and the clip had neither poster nor player.
+        const html = (await capture()).bodyHtml ?? '';
+        expect(odyseeBodies.some(b => b.includes(ODYSEE_LBRY)), 'resolve request').toBe(true);
+        expect(html, 'odysee poster').toContain(`data-dx-src="${ODYSEE_THUMB}"`);
+        expect(html, 'watch-page link').toContain('href="https://odysee.com/@corbettreport:0/solutionswatch-unvandalism:1"');
+        // The iframe sits in a <p>; a card left there splits in two when re-parsed.
+        expect(html.match(/href="https:\/\/odysee\.com\/@corbettreport/g)?.length, 'one card').toBe(1);
       });
 
       it('resolves a Facebook plugins.video.php embed to its canonical URL', async () => {

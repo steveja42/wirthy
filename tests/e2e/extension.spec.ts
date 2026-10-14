@@ -20,7 +20,7 @@ test.describe('extension capture pipeline', () => {
       // Some fixtures (goodreads-book: 97 <img> with real CDN srcs) are
       // network-bound — page load + image inlining can exceed the 30s default.
       test.setTimeout(120_000);
-      const { ctx } = await launchWithExtension();
+      const { ctx } = await launchWithExtension({ blockAds: true });
       try {
         const page = await ctx.newPage();
         // Surface content-script console.log/error so a failure to inject is visible.

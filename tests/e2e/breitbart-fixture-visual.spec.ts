@@ -20,7 +20,7 @@ test('breitbart-fixture-visual', async () => {
   mkdirSync(outDir, { recursive: true });
   const out = (n: string) => resolve(outDir, n);
 
-  const { ctx } = await launchWithExtension({ headed: !!process.env.PWDEBUG_HEADED });
+  const { ctx } = await launchWithExtension({ headed: !!process.env.PWDEBUG_HEADED, blockAds: true });
   // The embeds never render here, so their cards are filled from X's syndication
   // JSON — served from saved copies (and the images they name) for a stable baseline.
   const SYND = resolve(__dirname, '..', 'fixtures', 'syndication');
@@ -42,6 +42,9 @@ test('breitbart-fixture-visual', async () => {
       }
     });
     await page.goto(FIXTURE_URL, { waitUntil: 'load', timeout: 30_000 });
+    // widgets.js adds the X frames seconds after `load`; capturing first leaves "View on X" stubs.
+    await expect.poll(() => page.frames().filter(f => /platform\.twitter\.com\/embed\/Tweet\.html/.test(f.url())).length,
+      { timeout: 20_000 }).toBeGreaterThanOrEqual(2);
     // The content script is injected on the activation gesture (there is no
     // static content_scripts entry), so trigger it before the test bridge.
     await activateExtensionOnTab(ctx, FIXTURE_URL);

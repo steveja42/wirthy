@@ -82,7 +82,7 @@ export async function runCastFixtureVisual(opts: CastFixtureVisualOptions): Prom
   mkdirSync(outDir, { recursive: true });
   const out = (name: string) => resolve(outDir, name);
 
-  const { ctx } = await launchWithExtension({ headed: !!process.env.PWDEBUG_HEADED });
+  const { ctx } = await launchWithExtension({ headed: !!process.env.PWDEBUG_HEADED, blockAds: true });
   let capture: Record<string, unknown>;
   try {
     capture = await captureFixture(ctx, fixtureUrl, opts);

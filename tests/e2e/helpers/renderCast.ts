@@ -43,6 +43,8 @@ async function mockRelayWith(page: Page, event: NostrEvent): Promise<void> {
     try { localStorage.setItem('wirthy.relayMode', 'production'); } catch { /* ignore */ }
     // The feed hides TEST_CAST_PUBKEY's casts by default, and every cast here is one.
     try { localStorage.setItem('wirthy.showTestCasts', '1'); } catch { /* ignore */ }
+    // A returning visitor: the first-visit popover would cover the feed row and eat the click.
+    try { localStorage.setItem('wirthy.seenHero', '1'); } catch { /* ignore */ }
   });
   await page.routeWebSocket(/^wss:\/\//, (ws) => {
     ws.onMessage((message: string | Buffer) => {
@@ -74,6 +76,7 @@ async function serveViaLocalRelay(page: Page, event: NostrEvent): Promise<void> 
   await page.addInitScript(() => {
     try { localStorage.setItem('wirthy.relayMode', 'local'); } catch { /* ignore */ }
     try { localStorage.setItem('wirthy.showTestCasts', '1'); } catch { /* ignore */ }
+    try { localStorage.setItem('wirthy.seenHero', '1'); } catch { /* ignore */ }
   });
 }
 

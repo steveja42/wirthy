@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<!--
+  Counter-case for narrowToHeadlineColumn: a product gallery laid out BESIDE the
+  title column holds no prose, but it is content. It must not be shed as a rail.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Trailhead Folding Lantern | Example Outfitters</title>
+  <style>
+    body { margin: 0; font: 16px/1.5 Arial, sans-serif; }
+    .site-header { display: flex; gap: 16px; padding: 12px 24px; background: #234; color: #fff; }
+    .site-header a { color: #fff; }
+    .wrap { display: flex; gap: 32px; max-width: 1100px; margin: 24px auto; }
+    .gallery { flex: 1; min-width: 0; } .info { flex: 2; }
+    .gallery img { max-width: 100%; height: auto; }
+  </style>
+</head>
+<body>
+  <div id="page">
+    <header class="site-header">
+      <nav><a href="/camp">Camp</a> <a href="/hike">Hike</a> <a href="/sale">Sale</a></nav>
+      <span>MASTHEAD-PROMO</span>
+    </header>
+    <div class="wrap">
+      <div class="gallery"><img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='500' height='500'%3E%3Crect width='500' height='500' fill='%23a85'/%3E%3C/svg%3E" width="500" height="500" alt="Trailhead Folding Lantern GALLERY-PHOTO"></div>
+      <div class="info">
+        <h1>Trailhead Folding Lantern</h1>
+        <p>A collapsible LED lantern that packs flat to two centimetres and throws a warm, even light across a whole tent for up to forty hours on one charge.</p>
+        <p>The silicone body survives drops onto rock, the handle doubles as a hanging hook, and the USB-C port sits behind a sealed flap so rain is never a problem.</p>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

@@ -111,6 +111,21 @@ export function useClipVideoPlayers(
 
       e.preventDefault();
 
+      // Audio has no frame to size: a native player row in place of the card.
+      if (embed.audio) {
+        const player = document.createElement('audio');
+        player.src = embed.embedUrl;
+        player.controls = true;
+        player.autoplay = true;
+        player.preload = 'none';
+        const box = document.createElement('div');
+        box.className = 'clip-audio-embed';
+        box.appendChild(player);
+        mountPlayer(card, box);
+        activePlayers.set(href, box);
+        return;
+      }
+
       // Carry the POSTER's aspect ratio into the player. A fixed 16/9 frame
       // letterboxes a 9:16 reel into a thin band with black bars either side,
       // which is both smaller than the poster it replaced and the wrong shape.

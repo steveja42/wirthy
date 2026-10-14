@@ -30,7 +30,7 @@ test.describe.configure({ mode: 'serial' });
 test('overlay clicks do not trigger the page\'s window.open hijack', async () => {
   test.setTimeout(120_000);
 
-  const { ctx } = await launchWithExtension({ headed: !!process.env.PWDEBUG_HEADED });
+  const { ctx } = await launchWithExtension({ headed: !!process.env.PWDEBUG_HEADED, blockAds: true });
   try {
     const page = await ctx.newPage();
     await page.goto(FIXTURE_URL, { waitUntil: 'load', timeout: 30_000 });

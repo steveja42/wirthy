@@ -28,7 +28,7 @@ async function capture(ctx: BrowserContext, name: string): Promise<string> {
 
 test('product page: sticky title column kept, gallery and shelves trimmed', async () => {
   test.setTimeout(60_000);
-  const { ctx } = await launchWithExtension();
+  const { ctx } = await launchWithExtension({ blockAds: true });
   try {
     const html = await capture(ctx, 'commerce-pdp');
     expect(html, 'sticky column holding the h1').toContain('Trailhead Canvas Backpack 30L');
@@ -53,7 +53,7 @@ test('product page: sticky title column kept, gallery and shelves trimmed', asyn
 
 test('article: a priced shelf is only trimmed, and a sticky ad rail still goes', async () => {
   test.setTimeout(60_000);
-  const { ctx } = await launchWithExtension();
+  const { ctx } = await launchWithExtension({ blockAds: true });
   try {
     const html = await capture(ctx, 'commerce-shop-article');
     expect(html).toContain('The best way to pack for a week on the trail');

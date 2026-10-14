@@ -20,10 +20,13 @@ export interface VideoEmbed {
   href: string;
   /** True when embedUrl is a media FILE, played in a native <video> rather than an iframe. */
   direct?: boolean;
+  /** True when that file is audio (a podcast MP3), played in a native <audio>. */
+  audio?: boolean;
 }
 
 /** A URL naming a playable media file rather than a page. */
 const DIRECT_VIDEO_FILE_RE = /\.(mp4|webm|m4v|mov|ogv)$/i;
+const DIRECT_AUDIO_FILE_RE = /\.(mp3|m4a|aac|oga|ogg|opus|wav|flac)$/i;
 
 /**
  * Resolve a canonical media URL to an inline embed, or null when the provider
@@ -154,14 +157,24 @@ export function resolveVideoEmbed(rawUrl: string): VideoEmbed | null {
   if (u.protocol === 'https:' && DIRECT_VIDEO_FILE_RE.test(u.pathname)) {
     return { embedUrl: u.href, provider: 'video', href: u.href, direct: true };
   }
+  if (u.protocol === 'https:' && DIRECT_AUDIO_FILE_RE.test(u.pathname)) {
+    return { embedUrl: u.href, provider: 'audio', href: u.href, direct: true, audio: true };
+  }
 
-  // Rumble / Odysee / Twitch / Dailymotion — already-embeddable player URLs are
-  // passed through; their watch-page forms carry no derivable player path.
+  // Rumble — the embed URL passes through; its watch page carries no derivable
+  // player path. Odysee's does (`/@chan:0/stream:1` → `/$/embed/…`).
   if (host === 'rumble.com' && u.pathname.startsWith('/embed/')) {
     return { embedUrl: rawUrl, provider: 'Rumble', href: rawUrl };
   }
-  if (host.endsWith('odysee.com') && u.pathname.startsWith('/$/embed/')) {
-    return { embedUrl: rawUrl, provider: 'Odysee', href: rawUrl };
+  if (host === 'odysee.com') {
+    const claim = odyseeClaimPath(u);
+    if (claim) {
+      return {
+        embedUrl: `https://odysee.com/%24/embed/${encodeURIComponent(claim)}?autoplay=true`,
+        provider: 'Odysee',
+        href: new URL(`https://odysee.com/${claim}`).href,
+      };
+    }
   }
   if (host === 'dailymotion.com' || host === 'geo.dailymotion.com') {
     const id = u.pathname.match(/\/video\/([A-Za-z0-9]+)/)?.[1];
@@ -175,6 +188,22 @@ export function resolveVideoEmbed(rawUrl: string): VideoEmbed | null {
   }
 
   return null;
+}
+
+/**
+ * `@channel:0/stream:1` from an Odysee watch page or embed URL. Embed codes
+ * percent-encode the path (`/%24/embed/%40chan%3A0%2F…`), so decode first.
+ */
+function odyseeClaimPath(u: URL): string | null {
+  let path: string;
+  try { path = decodeURIComponent(u.pathname); } catch { return null; }
+  const embed = path.match(/^\/\$\/embed\/(.+?)\/?$/)?.[1];
+  if (embed) {
+    const legacy = embed.match(/^([^@/][^/]*)\/([0-9a-f]{40})$/i);
+    return legacy ? `${legacy[1]}:${legacy[2]}` : embed;
+  }
+  // A watch page names a stream with a claim-id suffix; a bare channel page does not.
+  return path.match(/^\/((?:@[^/]+\/)?[^/@$][^/]*:[0-9a-f]+)\/?$/i)?.[1] ?? null;
 }
 
 /** A YouTube id is 11 chars of the URL-safe alphabet; anything else is a path. */

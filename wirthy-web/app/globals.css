@@ -1772,6 +1772,9 @@ a { color: inherit; }
 .clip-body .tweet-text img { width: 1.2em !important; height: 1.2em !important; vertical-align: middle; display: inline !important; margin: 0 !important; border-radius: 0 !important; }
 .clip-body div:empty { display: none; }
 .clip-body .dx-video-link { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border: 1px solid var(--rule-soft); border-radius: 8px; font-family: var(--sans); font-size: 14px; text-decoration: none !important; color: var(--ink-2) !important; margin: 8px 0; }
+/* A played audio card (podcast MP3): the browser's own player, column-wide but not stretched. */
+.clip-body .clip-audio-embed { margin: 8px 0; }
+.clip-body .clip-audio-embed audio { display: block; width: 100%; max-width: 520px; }
 
 /* Click-to-play. The poster card swaps itself for this on click; nothing is
    requested from the provider until then, so opening a clip never announces

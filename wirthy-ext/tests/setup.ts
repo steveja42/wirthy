@@ -75,6 +75,13 @@ if (typeof globalThis.DOMParser === 'undefined') {
   globalThis.DOMParser = require('jsdom').JSDOM.window.DOMParser;
 }
 
+// Capture asks Odysee's API for embed posters; never let a fixture reach it.
+const realFetch = globalThis.fetch;
+globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) =>
+  String(input instanceof Request ? input.url : input).includes('odysee.com/')
+    ? new Response('', { status: 404 })
+    : realFetch(input, init)) as typeof fetch;
+
 afterEach(() => {
   vi.clearAllMocks();
 });

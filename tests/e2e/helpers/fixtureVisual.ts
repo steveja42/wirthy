@@ -87,7 +87,7 @@ export async function runFixtureVisual(opts: FixtureVisualOptions): Promise<void
   mkdirSync(outDir, { recursive: true });
   const out = (name: string) => resolve(outDir, name);
 
-  const { ctx } = await launchWithExtension({ headed: !!process.env.PWDEBUG_HEADED });
+  const { ctx } = await launchWithExtension({ headed: !!process.env.PWDEBUG_HEADED, blockAds: true });
   try {
     await driveSpec(ctx, {
       site,

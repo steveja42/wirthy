@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<!--
+  Guards narrowToHeadlineColumn (layout-only, so jsdom cannot run it). Shape is
+  corbettreport.com's Divi theme: no <article>/<main>, so the layout finder runs
+  and keeps the OUTERMOST passing block, the whole page. Narrowing must shed the
+  masthead, the side rail and the footer, but must STOP at the main column: the
+  hero sits in a wrapper above the title box and the body in a sibling below it.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Repainting the Underpass Together | Example Weekly</title>
+  <style>
+    body { margin: 0; font: 16px/1.5 Georgia, serif; }
+    .site-header { display: flex; align-items: center; gap: 16px; padding: 12px 24px; background: #222; color: #eee; }
+    .site-header a { color: #eee; }
+    .wrap { display: flex; gap: 32px; max-width: 1100px; margin: 24px auto; }
+    .main { flex: 3; }
+    .rail { flex: 1; font-size: 14px; }
+    .site-footer { padding: 24px; background: #eee; }
+  </style>
+</head>
+<body>
+  <div id="page">
+    <header class="site-header">
+      <a href="/"><img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='60'/%3E" width="200" height="60" alt="Example Weekly"></a>
+      <nav><a href="/news">News</a> <a href="/videos">Videos</a> <a href="/about">About</a></nav>
+      <span>MASTHEAD-SOCIAL-ROW</span> <a href="/start">New? Start Here!</a>
+    </header>
+    <div class="wrap">
+      <div class="main">
+        <div class="hero"><img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='450'%3E%3Crect width='800' height='450' fill='%23789'/%3E%3C/svg%3E" width="800" height="450" alt="HERO-UNDERPASS-MURAL"></div>
+        <div class="titlebox">
+          <h1>Repainting the Underpass Together</h1>
+          <p class="byline">by Jo Example | Oct 9, 2026</p>
+        </div>
+        <div class="body">
+          <p>Neighbours gathered on Saturday morning with rollers, brushes and forty litres of donated paint to cover the graffiti that had built up on the underpass walls over the past three years.</p>
+          <p>The work took six hours. Volunteers rotated in shifts so that nobody stood in the cold for too long, and a local bakery brought coffee and pastries around midday to keep everyone going.</p>
+          <p>Organisers say the point was never the paint itself but the habit of looking after shared spaces, which they hope will carry over into a tool library and a weekly repair café.</p>
+          <p>BODY-CLOSING-PARAGRAPH: the group meets again next month at the bus shelter on Mill Road, and anyone who wants to help is welcome to turn up with old clothes and a free afternoon.</p>
+        </div>
+      </div>
+      <div class="rail" id="post-sidebar">
+        <h3>Support the site</h3>
+        <p>RAIL-BLURB: independent media depends on readers like you. Subscribe for a monthly newsletter and member videos.</p>
+        <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='600'/%3E" width="160" height="600" alt="RAIL-BANNER-AD">
+        <h3>Recent comments</h3>
+        <ul><li><a href="/a#c1">Ann on Older story</a></li><li><a href="/b#c2">Bo on Another story</a></li></ul>
+      </div>
+    </div>
+    <footer class="site-footer"><p>FOOTER-COPYRIGHT Example Weekly 2026</p></footer>
+  </div>
+</body>
+</html>

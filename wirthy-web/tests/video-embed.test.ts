@@ -52,12 +52,36 @@ describe('resolveVideoEmbed', () => {
     expect(resolveVideoEmbed('https://www.facebook.com/reel/123456')!.provider).toBe('Facebook');
   });
 
+  it('resolves Odysee embeds (percent-encoded, as its embed code emits them) and watch pages', () => {
+    const embed = 'https://odysee.com/%24/embed/%40corbettreport%3A0%2Fsolutionswatch-unvandalism%3A1';
+    for (const url of [
+      `${embed}?r=4dTXQMGJ`,
+      'https://odysee.com/$/embed/@corbettreport:0/solutionswatch-unvandalism:1',
+      'https://odysee.com/@corbettreport:0/solutionswatch-unvandalism:1',
+    ]) {
+      const r = resolveVideoEmbed(url);
+      expect(r, url).not.toBeNull();
+      expect(r!.provider).toBe('Odysee');
+      expect(r!.embedUrl).toBe(`${embed}?autoplay=true`);
+      expect(r!.href).toBe('https://odysee.com/@corbettreport:0/solutionswatch-unvandalism:1');
+    }
+    // A channel page is not a video.
+    expect(resolveVideoEmbed('https://odysee.com/@corbettreport:0')).toBeNull();
+  });
+
   it('plays a direct https media file natively', () => {
     const url = 'https://r2a.primal.net/uploads2/1/76/d9/176d929e.mp4';
     expect(resolveVideoEmbed(url)).toEqual({ embedUrl: url, provider: 'video', href: url, direct: true });
     expect(resolveVideoEmbed('https://cdn.example.com/clip.webm?x=1')!.direct).toBe(true);
     // A page URL is never direct, even when a provider is known.
     expect(resolveVideoEmbed('https://vimeo.com/123456789')!.direct).toBeUndefined();
+  });
+
+  it('plays a direct https audio file natively, as audio', () => {
+    const url = 'https://www.corbettreport.com/mp3/solutionswatch-unvandalism.mp3?_=1';
+    expect(resolveVideoEmbed(url)).toEqual({ embedUrl: url, provider: 'audio', href: url, direct: true, audio: true });
+    expect(resolveVideoEmbed('https://cdn.example.com/clip.mp4')!.audio).toBeUndefined();
+    expect(resolveVideoEmbed('http://example.com/show.mp3')).toBeNull();
   });
 
   it('returns null for unknown hosts and non-http schemes', () => {

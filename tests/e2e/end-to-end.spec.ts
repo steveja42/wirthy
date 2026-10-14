@@ -10,7 +10,7 @@ test.describe('end-to-end clip pipeline', () => {
   test.describe.configure({ mode: 'serial' });
 
   test('captures blog-post.html and renders it on /clips', async () => {
-    const { ctx } = await launchWithExtension();
+    const { ctx } = await launchWithExtension({ blockAds: true });
     try {
       // 1. Open the fixture, capture, and CLIP through the real background handler.
       const fixtureUrl = 'http://127.0.0.1:4173/blog-post.html';

@@ -30,7 +30,7 @@ async function capture(ctx: BrowserContext, format: 'article' | 'full-page'): Pr
 
 test('inlines a live-blog iframe and skips the empty ad-slot <article>', async () => {
   test.setTimeout(60_000);
-  const { ctx } = await launchWithExtension();
+  const { ctx } = await launchWithExtension({ blockAds: true });
   try {
     const html = await capture(ctx, 'article');
     expect(html).toContain('legal negotiation window');
@@ -47,7 +47,7 @@ test('inlines a live-blog iframe and skips the empty ad-slot <article>', async (
 
 test('full-page drops a ticker strip (short, clipped, track far wider than its box)', async () => {
   test.setTimeout(60_000);
-  const { ctx } = await launchWithExtension();
+  const { ctx } = await launchWithExtension({ blockAds: true });
   try {
     const html = await capture(ctx, 'full-page');
     expect(html, 'full-page keeps the story').toContain('legal negotiation window');

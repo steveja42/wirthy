@@ -166,7 +166,27 @@ export interface LaunchOptions {
    * Also settable via env: CLEAR_SW_CACHE=1.
    */
   clearSwCacheForRawDir?: boolean;
+  /**
+   * Abort requests to ad networks. For OFFLINE fixture specs only: a snapshot
+   * keeps its live ad scripts, whose user-sync chains can hold `load` open
+   * forever (goodreads-book: 1,808 requests, 56 never answered). Never for live
+   * specs, which must see real pages, and routing disables the HTTP cache.
+   */
+  blockAds?: boolean;
 }
+
+/** Ad-network and user-sync hosts, seeded from the requests that hung goodreads-book. */
+const AD_HOST_RE = new RegExp(
+  '^https?://([^/]+\\.)?(' + [
+    'doubleclick\\.net', 'googlesyndication\\.com', 'googletagservices\\.com', 'googleadservices\\.com',
+    'amazon-adsystem\\.com', 'adnxs\\.com', 'adsrvr\\.org', 'rubiconproject\\.com', 'pubmatic\\.com',
+    'criteo\\.(com|net)', 'openx\\.net', 'casalemedia\\.com', 'indexww\\.com', 'smartadserver\\.com',
+    'bidswitch\\.net', 'inmobi\\.com', 'onetag-sys\\.com', 'technoratimedia\\.com', 'minutemedia-prebid\\.com',
+    'krushmedia\\.com', 'admanmedia\\.com', 'iqzone\\.com', 'cootlogix\\.com', 'atmtd\\.com', 'vrtcal\\.com',
+    'tracookiepixel\\.xyz', 'adsafeprotected\\.com', 'moatads\\.com', 'taboola\\.com', 'outbrain\\.com',
+    '33across\\.com', 'sharethrough\\.com', 'lijit\\.com', 'sovrn\\.com', 'teads\\.tv', 'yieldmo\\.com',
+  ].join('|') + ')(:\\d+)?/', 'i',
+);
 
 export async function launchWithExtension(opts: LaunchOptions = {}): Promise<ExtensionContext> {
   // Env-var override so any spec can target a warm real-browser profile without
@@ -380,5 +400,6 @@ export async function launchWithExtension(opts: LaunchOptions = {}): Promise<Ext
   // before they postMessage the test bridge. runFixtureVisual does this for the
   // ~21 specs that share it.
 
+  if (opts.blockAds) await ctx.route(AD_HOST_RE, route => route.abort('blockedbyclient'));
   return { ctx, userDataDir };
 }

@@ -723,9 +723,10 @@ async function extractSelection(): Promise<Capture> {
   // Twitter GIFs and videos are <video poster="..."> — convert to <img> so they
   // survive sanitisation (which drops <video> as a non-allowed tag).
   substituteVideosWithPosters(fragment);
+  substituteAudioPlayers(fragment);
   substituteStarRatings(fragment);
   await substituteEmbeddedTweets(fragment, harvestedTweets);
-  substituteVideoEmbeds(fragment);
+  await substituteVideoEmbeds(fragment);
   // Generic semantic tagging (skipped automatically when a site tagger was
   // active) — stamps dx-byline / dx-stats / dx-quote on news + blog markup so
   // a selection spanning a byline or engagement row gets the same layout
@@ -3986,18 +3987,72 @@ const significantWords = (s: string) => new Set(
  * place, so "this is the same story" is judged identically in both places.
  */
 function containsPageHeadline(el: Element, title: string): boolean {
+  return querySelectorAllDeep(el, 'h1, h2').some(heading => isPageHeadline(heading, title));
+}
+
+/** True when `heading` is title-length and shares the page <title>'s words. */
+function isPageHeadline(heading: Element, title: string): boolean {
   const titleWords = significantWords(title);
   if (titleWords.size === 0) return false;
-  for (const heading of querySelectorAllDeep(el, 'h1, h2')) {
-    const headingText = collapseWhitespace(heading.textContent ?? '');
-    if (headingText.length < HEADLINE_MIN_CHARS || headingText.length > HEADLINE_MAX_CHARS) continue;
-    const headingWords = significantWords(headingText);
-    if (headingWords.size === 0) continue;
-    let sharedWordCount = 0;
-    for (const word of headingWords) if (titleWords.has(word)) sharedWordCount++;
-    if (sharedWordCount / headingWords.size >= HEADLINE_TITLE_OVERLAP) return true;
+  const headingText = collapseWhitespace(heading.textContent ?? '');
+  if (headingText.length < HEADLINE_MIN_CHARS || headingText.length > HEADLINE_MAX_CHARS) return false;
+  const headingWords = significantWords(headingText);
+  if (headingWords.size === 0) return false;
+  let sharedWordCount = 0;
+  for (const word of headingWords) if (titleWords.has(word)) sharedWordCount++;
+  return sharedWordCount / headingWords.size >= HEADLINE_TITLE_OVERLAP;
+}
+
+// A shed band (masthead/footer) holding more real prose than this is content.
+const BAND_MAX_PROSE_CHARS = 300;
+// The headline's column must keep at least this share of the level's prose.
+const HEADLINE_COLUMN_MIN_PROSE_SHARE = 0.5;
+// A side rail is at most this wide relative to the headline column (measured ~0.3).
+const RAIL_MAX_WIDTH_SHARE = 0.6;
+
+/** Real-prose text length under `el`, ignoring comment widgets. */
+function proseChars(el: Element): number {
+  return Array.from(el.querySelectorAll('p, blockquote'))
+    .filter(p => !p.closest(COMMENT_WIDGET_SELECTOR) && isRealProse(p))
+    .reduce((n, p) => n + (p.textContent ?? '').trim().length, 0);
+}
+
+/**
+ * Descend from a layout-finder winner toward the page headline's column. The
+ * finder keeps the OUTERMOST passing block, which on a theme-builder page is
+ * the whole page (corbettreport: masthead + sidebar). Each step sheds only a
+ * rail beside the column or a masthead/footer band, and stops at anything else.
+ */
+function narrowToHeadlineColumn(el: Element, title: string): Element {
+  const headline = soleVisibleHeadline(el);
+  if (!headline || !isPageHeadline(headline, title)) return el;
+  let cur: Element = el;
+  for (;;) {
+    const kids = Array.from(cur.children);
+    const col: Element | undefined = kids.find(k => k.contains(headline));
+    if (!col || col === headline) break;
+    const colRect = col.getBoundingClientRect();
+    const shed = kids.filter(k => {
+      if (k === col) return false;
+      const r = k.getBoundingClientRect();
+      return r.width > 0 && r.height > 0 && ((k.textContent ?? '').trim().length > 0 || !!k.querySelector('img, video, iframe'));
+    });
+    const chromeOnly = shed.every(k => {
+      const r = k.getBoundingClientRect();
+      // A product gallery beside the title is content: wide, or a photo named like the headline.
+      const beside = r.width <= colRect.width * RAIL_MAX_WIDTH_SHARE
+        && (r.right <= colRect.left + 2 || r.left >= colRect.right - 2)
+        && r.top < colRect.bottom && r.bottom > colRect.top
+        && !isStickyContentColumn(k, headline);
+      const band = (k.matches('header, footer, nav, [role="banner"], [role="contentinfo"], [role="navigation"]')
+        || !!k.querySelector('nav, [role="navigation"]')) && proseChars(k) <= BAND_MAX_PROSE_CHARS;
+      return beside || band;
+    });
+    if (!chromeOnly || proseChars(col) < proseChars(cur) * HEADLINE_COLUMN_MIN_PROSE_SHARE) break;
+    cur = col;
   }
-  return false;
+  if (cur !== el) log(LL.DEBUG, `Wirthy: layout winner narrowed to the headline column <${cur.tagName.toLowerCase()}>`, 'url:', window.location.href);
+  return cur;
 }
 
 /**
@@ -4328,10 +4383,11 @@ async function extractArticle(opts: CaptureOptions): Promise<Capture> {
     stripPageChrome(clone);
     census.at('stripChrome', clone);
     substituteVideosWithPosters(clone, liveVideoFrames);
+    substituteAudioPlayers(clone);
     census.at('videoPosters', clone);
     substituteStarRatings(clone);
     await substituteEmbeddedTweets(clone, harvestedTweets);
-    substituteVideoEmbeds(clone);
+    await substituteVideoEmbeds(clone);
     // Feed posts and Instagram reels: lead with the media when the source laid
     // it out above/beside the caption (no-op unless markMediaForHoist marked it).
     hoistMarkedMedia(clone);
@@ -4376,7 +4432,8 @@ async function extractArticle(opts: CaptureOptions): Promise<Capture> {
   // largest centre-column block with real prose by visual layout.
   // A site tagger may have already pinpointed the content root; prefer it so we
   // don't capture page chrome (sidebars, search, banners) the finder would grab.
-  const layoutEl = siteTaggerRoot ?? findContentBlockByLayout();
+  const found = siteTaggerRoot ? null : findContentBlockByLayout();
+  const layoutEl = siteTaggerRoot ?? (found && narrowToHeadlineColumn(found, base.title));
   if (layoutEl) {
     log(LL.DEBUG, `Wirthy: article captured via layout finder <${layoutEl.tagName.toLowerCase()}>`, 'url:', base.url);
     const cleanup = markExcluded(document.body);
@@ -4433,10 +4490,11 @@ async function extractArticle(opts: CaptureOptions): Promise<Capture> {
     if (!siteTaggerRoot) stripPageChrome(clone);
     census.at('stripChrome', clone);
     substituteVideosWithPosters(clone, liveVideoFrames);
+    substituteAudioPlayers(clone);
     census.at('videoPosters', clone);
     substituteStarRatings(clone);
     await substituteEmbeddedTweets(clone, harvestedTweets);
-    substituteVideoEmbeds(clone);
+    await substituteVideoEmbeds(clone);
     // Feed posts and Instagram reels: lead with the media when the source laid
     // it out above/beside the caption (no-op unless markMediaForHoist marked it).
     hoistMarkedMedia(clone);
@@ -4519,9 +4577,10 @@ async function extractArticle(opts: CaptureOptions): Promise<Capture> {
   stripSizeMarkers(bodyClone);
   stripPageChrome(bodyClone);
   substituteVideosWithPosters(bodyClone, liveVideoFrames);
+  substituteAudioPlayers(bodyClone);
   substituteStarRatings(bodyClone);
   await substituteEmbeddedTweets(bodyClone, harvestedTweets);
-  substituteVideoEmbeds(bodyClone);
+  await substituteVideoEmbeds(bodyClone);
   tagSemanticStructure(bodyClone);
   sanitiseTreeInPlace(bodyClone);
   const { html: inlined, imageUrls } = await inlineAllImages(bodyClone.innerHTML.trim());
@@ -4626,9 +4685,10 @@ async function extractFullPage(opts: CaptureOptions): Promise<Capture> {
   applyTaggerToClone(bodyClone);
   stripPageChrome(bodyClone);
   substituteVideosWithPosters(bodyClone, fpLiveVideoFrames);
+  substituteAudioPlayers(bodyClone);
   substituteStarRatings(bodyClone);
   await substituteEmbeddedTweets(bodyClone, harvestedTweets);
-  substituteVideoEmbeds(bodyClone);
+  await substituteVideoEmbeds(bodyClone);
   // Generic semantic tagging (skipped automatically when a site tagger was
   // active). Stamps dx-byline / dx-stats / dx-header on news + blog markup
   // so the captured HTML carries layout hints across sanitisation.
@@ -4961,7 +5021,7 @@ function markExcluded(root: HTMLElement = document.body): () => void {
     const s = window.getComputedStyle(el);
     const stickyColumn = s.position === 'sticky' && isStickyContentColumn(el, headline);
     if (s.position === 'fixed' || (s.position === 'sticky' && !stickyColumn) ||
-        s.display === 'none' || s.visibility === 'hidden') {
+        (s.display === 'none' && !isSkinnedAudio(el)) || s.visibility === 'hidden') {
       el.setAttribute(EXCL_MARKER, '1');
       return;
     }
@@ -9811,7 +9871,49 @@ async function captureOneVideoFrame(video: HTMLVideoElement, loaded: boolean): P
  * clients. YouTube's `i.ytimg.com/vi/<id>/hqdefault.jpg` thumbnail is the same
  * URL `postCloneYoutube` already relies on.
  */
-type VideoEmbedInfo = { poster: string | null; href: string; label: string };
+type VideoEmbedInfo = { poster: string | null; href: string; label: string; odyseeClaim?: string };
+
+/**
+ * `@channel:0/stream:1` from an Odysee embed src. The embed code percent-encodes
+ * the path (`/%24/embed/%40chan%3A0%2Fstream%3A1`), which `URL.pathname` keeps
+ * encoded, so decode before matching. Legacy `/$/embed/<name>/<claimId>` too.
+ */
+function odyseeEmbedClaimPath(u: URL): string | null {
+  if (!/(^|\.)odysee\.com$/i.test(u.hostname)) return null;
+  let path: string;
+  try { path = decodeURIComponent(u.pathname); } catch { return null; }
+  const rest = path.match(/^\/\$\/embed\/(.+?)\/?$/)?.[1];
+  if (!rest) return null;
+  const legacy = rest.match(/^([^@/][^/]*)\/([0-9a-f]{40})$/i);
+  return legacy ? `${legacy[1]}:${legacy[2]}` : rest;
+}
+
+const ODYSEE_RESOLVE_API = 'https://api.na-backend.odysee.com/api/v1/proxy?m=resolve';
+
+/** The claim's thumbnail from Odysee's resolve API, which is CORS-open, so no grant is needed. */
+async function fetchOdyseeThumbnail(claimPath: string, timeoutMs = 2500): Promise<string | null> {
+  const lbryUrl = `lbry://${claimPath.replace(/:/g, '#')}`;
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), timeoutMs);
+  try {
+    // text/plain keeps this a simple request: the API's PREFLIGHT reply has no Allow-Origin.
+    const res = await fetch(ODYSEE_RESOLVE_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+      body: JSON.stringify({ jsonrpc: '2.0', method: 'resolve', params: { urls: [lbryUrl] } }),
+      credentials: 'omit',
+      signal: ctl.signal,
+    });
+    if (!res.ok) return null;
+    const json = await res.json() as { result?: Record<string, { value?: { thumbnail?: { url?: string } } }> };
+    const url = json.result?.[lbryUrl]?.value?.thumbnail?.url ?? '';
+    return /^https:\/\//i.test(url) ? url : null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 function matchVideoEmbed(src: string): VideoEmbedInfo | null {
   if (!/^https?:\/\//i.test(src)) return null;
@@ -9845,8 +9947,9 @@ function matchVideoEmbed(src: string): VideoEmbedInfo | null {
   if (host === 'rumble.com' && /^\/embed\//.test(u.pathname)) {
     return { poster: null, href: src, label: 'Rumble video' };
   }
-  if (/(^|\.)odysee\.com$/i.test(host) && /^\/\$\/embed\//.test(u.pathname)) {
-    return { poster: null, href: src, label: 'Odysee video' };
+  const odyseeClaim = odyseeEmbedClaimPath(u);
+  if (odyseeClaim) {
+    return { poster: null, href: new URL(`https://odysee.com/${odyseeClaim}`).href, label: 'Odysee video', odyseeClaim };
   }
   if (host === 'player.twitch.tv' || host === 'clips.twitch.tv') {
     return { poster: null, href: src, label: 'Twitch video' };
@@ -9904,13 +10007,14 @@ function matchVideoEmbed(src: string): VideoEmbedInfo | null {
  * plain https URL — the later inlineAllImages pass converts it to base64, and
  * data-dx-src keeps it in the kind-30023 cast markdown.
  */
-function substituteVideoEmbeds(root: Element | DocumentFragment): void {
-  const iframes = Array.from((root as Element).querySelectorAll('iframe'));
-  for (const iframe of iframes) {
-    const src = iframe.getAttribute('src') ?? '';
-    const info = matchVideoEmbed(src);
-    if (!info) continue;
-
+async function substituteVideoEmbeds(root: Element | DocumentFragment): Promise<void> {
+  const matches = Array.from((root as Element).querySelectorAll('iframe'))
+    .map(iframe => ({ iframe, info: matchVideoEmbed(iframe.getAttribute('src') ?? '') }))
+    .filter((m): m is { iframe: HTMLIFrameElement; info: VideoEmbedInfo } => !!m.info);
+  await Promise.all(matches.map(async ({ info }) => {
+    if (!info.poster && info.odyseeClaim) info.poster = await fetchOdyseeThumbnail(info.odyseeClaim);
+  }));
+  for (const { iframe, info } of matches) {
     const doc = iframe.ownerDocument ?? document;
     if (info.poster) {
       const a = doc.createElement('a');
@@ -9929,7 +10033,11 @@ function substituteVideoEmbeds(root: Element | DocumentFragment): void {
       play.setAttribute('aria-label', 'Play video');
       play.innerHTML = '<svg viewBox="0 0 24 24" width="48" height="48"><path d="M8 5v14l11-7z"/></svg>';
       a.appendChild(play);
-      iframe.replaceWith(a);
+      // WordPress wraps embeds in <p>; a <div> there is split off when the HTML is re-parsed.
+      const para = iframe.parentElement?.closest('p');
+      if (!para) iframe.replaceWith(a);
+      else if (!(para.textContent ?? '').trim() && para.querySelectorAll('iframe, img, video').length === 1) para.replaceWith(a);
+      else { para.after(a); iframe.remove(); }
     } else {
       const a = doc.createElement('a');
       a.className = 'dx-video-link';
@@ -9964,6 +10072,72 @@ function textOutsidePlayer(el: Element): string {
 
 /** A URL naming a playable media file (not a page), which the web app can play directly. */
 const DIRECT_VIDEO_FILE_RE = /\.(mp4|webm|m4v|mov|ogv)($|[?#])/i;
+const DIRECT_AUDIO_FILE_RE = /\.(mp3|m4a|aac|oga|ogg|opus|wav|flac)($|[?#])/i;
+
+/**
+ * A hidden <audio> driven by the site's own visible controls (MediaElement.js
+ * sets the native element to display:none). Kept by markExcluded so
+ * substituteAudioPlayers can find it; a hidden sound with no controls is not.
+ */
+function isSkinnedAudio(el: Element): boolean {
+  if (el.tagName !== 'AUDIO') return false;
+  for (let cur = el.parentElement, i = 0; cur && i < 4; cur = cur.parentElement, i++) {
+    const r = cur.getBoundingClientRect();
+    if (r.width >= 150 && r.height > 0 && cur.querySelector('button, [role="slider"], [role="timer"]')) return true;
+  }
+  return false;
+}
+
+/** Text a player's chrome leaves: its controls, hidden labels and the <audio> fallback are skipped. */
+function playerChromeText(el: Element): string {
+  const walker = (el.ownerDocument ?? document).createTreeWalker(el, NodeFilter.SHOW_TEXT);
+  let out = '';
+  for (let t = walker.nextNode(); t; t = walker.nextNode()) {
+    if (!t.parentElement?.closest('audio, video, button, [role="slider"], [role="timer"], noscript, script, style, '
+      + '[class*="offscreen" i], [class*="sr-only" i], [class*="visually-hidden" i]')) out += t.textContent ?? '';
+  }
+  return out;
+}
+
+const urlSansQuery = (u: string) => u.replace(/[?#].*$/, '').replace(/^https?:\/\/(www\.)?/i, '');
+
+/**
+ * Replace an <audio> player (WordPress's MediaElement.js, PowerPress podcasts)
+ * with a "▶ Listen" card the web app plays in place. Sanitising dropped the
+ * <audio> and left its timers ("00:00 00:00") as stray text. A player with no
+ * playable https file is removed, and so is a link strip beside it whose links
+ * all point at that same file ("Podcast: Play in new window | Download | Embed").
+ */
+function substituteAudioPlayers(root: Element | DocumentFragment): void {
+  for (const audio of Array.from((root as Element).querySelectorAll('audio'))) {
+    if (!root.contains(audio)) continue; // went with an earlier player's box
+    // Narration widgets are removed whole later; a card inside one would go with it anyway.
+    if (audio.closest('[data-mp3u], [class*="amplitude" i], [id*="Polly" i]')) continue;
+    let box: Element = audio;
+    for (let cur = audio.parentElement, i = 0; cur && cur !== root && i < 8; cur = cur.parentElement, i++) {
+      if (cur.querySelectorAll('audio, video').length !== 1) break;
+      if (!/^[\s\d:\/.\-–]*$/.test(playerChromeText(cur))) break; // timecodes only
+      box = cur;
+    }
+    const src = videoSourceUrl(audio);
+    if (!/^https:\/\//i.test(src) || !DIRECT_AUDIO_FILE_RE.test(src)) { box.remove(); continue; }
+    for (const side of [box.previousElementSibling, box.nextElementSibling]) {
+      if (!side) continue;
+      const links = Array.from(side.querySelectorAll('a'));
+      const hrefs = links.map(a => a.getAttribute('href') ?? '');
+      const isOwnLink = (h: string) => urlSansQuery(h) === urlSansQuery(src);
+      if (hrefs.some(isOwnLink) && hrefs.every(h => isOwnLink(h) || /^(#.*|javascript:.*|)$/i.test(h))
+        && (side.textContent ?? '').trim().length <= 160 && !side.querySelector('img, video, audio')) side.remove();
+    }
+    const doc = box.ownerDocument ?? document;
+    const a = doc.createElement('a');
+    a.className = 'dx-video-link';
+    a.href = src;
+    a.textContent = '▶ Listen';
+    box.replaceWith(a);
+    log(LL.DEBUG, 'Wirthy: audio player substituted', 'url:', window.location.href);
+  }
+}
 
 function substituteVideosWithPosters(root: Element | DocumentFragment, liveFrames?: Map<string, string>): void {
   const builtCards = new Set<Element>();

@@ -23,7 +23,7 @@ test('medium-fixture-visual: capture local Medium fixture + render in /clips', a
   mkdirSync(outDir, { recursive: true });
   const out = (name: string) => resolve(outDir, name);
 
-  const { ctx } = await launchWithExtension({ headed: !!process.env.PWDEBUG_HEADED });
+  const { ctx } = await launchWithExtension({ headed: !!process.env.PWDEBUG_HEADED, blockAds: true });
   try {
     const page = await ctx.newPage();
     page.on('console', (msg) => {
