@@ -1359,8 +1359,7 @@ a { color: inherit; }
   inset: 0;
   z-index: 150;
   border-left: 0;
-}
-/* Fullscreen exists to give the content the whole window, so the player takes
+}/* Fullscreen exists to give the content the whole window, so the player takes
    the height available rather than staying at its in-column size. The vh caps
    that keep an inline player reasonable are the wrong limit here. */
 /* Fullscreen gives the player a bigger height budget. The wrapper's own inline

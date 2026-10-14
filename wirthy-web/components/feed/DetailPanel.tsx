@@ -3,7 +3,7 @@
 
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { ClipData } from '@/lib/types';
@@ -29,9 +29,13 @@ interface DetailPanelProps {
   // Right-click on the caster label. Absent on call sites with no follow
   // concept (e.g. the private Library, which has no public authorPubkey).
   onAuthorContextMenu?: (pubkey: string, x: number, y: number) => void;
-  // The post's own page (/c/<id>): enables the Share action and puts this URL in the
-  // address bar while fullscreen. Public casts only.
+  // The post's own page (/c/<id>): enables the Share action. Public casts only.
   shareHref?: string | null;
+  // URL put in the address bar while fullscreen; defaults to shareHref.
+  fullscreenHref?: string | null;
+  // Open fullscreen as soon as the clip is shown; onFullscreenStarted acknowledges it.
+  startFullscreen?: boolean;
+  onFullscreenStarted?: () => void;
   // Read-only views (a single public cast): no delete, and the note is shown, not editable.
   readOnly?: boolean;
 }
@@ -334,7 +338,7 @@ function renderTextWithBreaks(text: string, imageUrls?: Set<string>): React.Reac
   });
 }
 
-export default function DetailPanel({ clip, author, onDelete, onUpdateNote, bodies, onBodyFetched, onAuthorContextMenu, shareHref, readOnly = false }: DetailPanelProps) {
+export default function DetailPanel({ clip, author, onDelete, onUpdateNote, bodies, onBodyFetched, onAuthorContextMenu, shareHref, fullscreenHref, startFullscreen = false, onFullscreenStarted, readOnly = false }: DetailPanelProps) {
   const [isFullscreen, setIsFullscreen] = useState(false);
   // Click-to-play: delegated on the clip body. The body arrives ASYNCHRONOUSLY
   // (requestClipBody fetches it from the extension after first paint), so the
@@ -365,13 +369,14 @@ export default function DetailPanel({ clip, author, onDelete, onUpdateNote, bodi
     if (isFullscreen) setIsFullscreen(false);
   }
 
-  // Fullscreen on a public cast puts its /c/<id> URL in the address bar, so Back
-  // closes it and the address is shareable. The pushed entry carries Next's own
-  // history state forward: without it, Next reloads the page on popstate.
+  // Fullscreen puts the item's own URL (/c/<id>, or /clips?clip=<id>) in the address
+  // bar, so Back closes it and the address can be reopened. The pushed entry carries
+  // Next's own history state forward: without it, Next reloads the page on popstate.
   const clipId = clip?.capture.id ?? null;
+  const fsHref = fullscreenHref ?? shareHref;
   const pushedRef = useRef(false);
   useEffect(() => {
-    if (!shareHref || !clipId) return;
+    if (!fsHref || !clipId) return;
     const onPop = () => {
       const mine = window.history.state?.[FULLSCREEN_STATE_KEY] === clipId;
       pushedRef.current = mine;
@@ -379,7 +384,7 @@ export default function DetailPanel({ clip, author, onDelete, onUpdateNote, bodi
     };
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
-  }, [shareHref, clipId]);
+  }, [fsHref, clipId]);
 
   // Any exit (button, Escape, clip swap) pops the entry this panel pushed.
   useEffect(() => {
@@ -395,14 +400,28 @@ export default function DetailPanel({ clip, author, onDelete, onUpdateNote, bodi
     return () => window.removeEventListener('keydown', onKey);
   }, [isFullscreen]);
 
-  const toggleFullscreen = () => {
-    if (isFullscreen) { setIsFullscreen(false); return; }
-    if (shareHref && clipId && window.location.pathname !== shareHref) {
-      window.history.pushState({ ...window.history.state, [FULLSCREEN_STATE_KEY]: clipId }, '', shareHref);
+  const enterFullscreen = () => {
+    if (fsHref && clipId && window.location.pathname + window.location.search !== fsHref) {
+      window.history.pushState({ ...window.history.state, [FULLSCREEN_STATE_KEY]: clipId }, '', fsHref);
       pushedRef.current = true;
     }
     setIsFullscreen(true);
   };
+  const toggleFullscreen = () => (isFullscreen ? setIsFullscreen(false) : enterFullscreen());
+
+  // Landing on the fullscreen URL (a reload) rewrites it to the bare page and pushes it
+  // back, so Back and exit behave exactly as after a click. A layout effect, so the
+  // split view never paints first.
+  useLayoutEffect(() => {
+    if (!startFullscreen || !clipId) return;
+    onFullscreenStarted?.();
+    if (window.location.pathname + window.location.search === fsHref) {
+      window.history.replaceState(window.history.state, '', window.location.pathname);
+    }
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- the URL drives it, and the history push must happen in an effect
+    enterFullscreen();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startFullscreen, clipId]);
 
   // Request body from extension when clip changes and it's not cached yet.
   useEffect(() => {

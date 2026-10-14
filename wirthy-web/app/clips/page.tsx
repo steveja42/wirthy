@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, useLayoutEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import TopBar from '@/components/chrome/TopBar';
 import Library from '@/components/clips/Library';
@@ -12,17 +12,25 @@ function LibraryWithClipId({ searchQuery }: { searchQuery: string }) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const initialClipId = searchParams.get('clip') ?? undefined;
+  const initialFullscreen = !!initialClipId && searchParams.get('fullscreen') === '1';
 
   // Remove ?clip= from the URL immediately after reading it so the address bar
-  // stays clean and back-button history isn't polluted.
+  // stays clean and back-button history isn't polluted. A fullscreen URL is left
+  // for DetailPanel, which keeps it while the clip is open.
   useEffect(() => {
-    if (initialClipId) {
+    if (initialClipId && !initialFullscreen) {
       router.replace('/clips', { scroll: false });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return <Library initialClipId={initialClipId} searchQuery={searchQuery} />;
+  // Library has rendered its own fullscreen cover by now; lift the pre-paint style
+  // (added by app/clips/layout.tsx).
+  useLayoutEffect(() => {
+    document.getElementById('clip-fullscreen-cover')?.remove();
+  }, []);
+
+  return <Library initialClipId={initialClipId} initialFullscreen={initialFullscreen} searchQuery={searchQuery} />;
 }
 
 export default function LibraryPage() {

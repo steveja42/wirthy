@@ -149,18 +149,27 @@ function ClipsFilterPanel({ activeCat, setActiveCat, catCounts, totalCount, acti
   );
 }
 
+// A fullscreen clip's URL; app/clips/page.tsx reopens it on load. A bare ?clip= (the
+// extension's deep link) only selects.
+function clipHref(id: string): string {
+  return `/clips?clip=${encodeURIComponent(id)}&fullscreen=1`;
+}
+
 interface LibraryProps {
   initialClipId?: string;
+  initialFullscreen?: boolean;
   searchQuery?: string;
 }
 
-export default function Library({ initialClipId, searchQuery }: LibraryProps) {
+export default function Library({ initialClipId, initialFullscreen, searchQuery }: LibraryProps) {
   const { bridgePresent, clips, timedOut, categories, bodies, removeClips, updateClipNote, removeCategory, setClipBody, focusClipId, clearFocusClipId } = useLibraryBridge();
 
   const [activeCat, setActiveCat] = useState<string | null>(null);
   const [activeSignals, setActiveSignals] = useState<string[]>([]);
   const [activeQuals, setActiveQuals] = useState<string[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(initialClipId ?? null);
+  // Cleared once the panel opens it, so a later remount (view switch) doesn't reopen it.
+  const [pendingFullscreenId, setPendingFullscreenId] = useState<string | null>(initialFullscreen ? initialClipId ?? null : null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [sortOrder, setSortOrder] = useState<SortOrder>('recent');
   const [viewMode, setViewMode] = useState<ViewMode>('list');
@@ -244,6 +253,8 @@ export default function Library({ initialClipId, searchQuery }: LibraryProps) {
   }, [categories]);
 
   const showEmpty = timedOut && !bridgePresent;
+  // A fullscreen URL covers the split view until the extension delivers the clips.
+  const awaitingFullscreen = pendingFullscreenId !== null && clips.length === 0 && !timedOut;
 
   // Tracks the last clip clicked without shift, for shift-range selection.
   const lastClickedId = useRef<string | null>(null);
@@ -392,6 +403,9 @@ export default function Library({ initialClipId, searchQuery }: LibraryProps) {
             <DetailPanel
               key={clip.capture.id ?? i}
               clip={clip}
+              fullscreenHref={clipHref(clip.capture.id)}
+              startFullscreen={clip.capture.id === pendingFullscreenId}
+              onFullscreenStarted={() => setPendingFullscreenId(null)}
               onDelete={handleSingleDelete}
               onUpdateNote={updateClipNote}
               bodies={bodies}
@@ -405,6 +419,7 @@ export default function Library({ initialClipId, searchQuery }: LibraryProps) {
 
   return (
     <div className="app feed-shell">
+      {awaitingFullscreen && <aside className="detail detail--fullscreen" aria-busy="true" />}
       <div className="feed-toolbar">
         <h1 className="feed-title"><em>Clips</em></h1>
         <FilterWidget activeCount={activeSignals.length + activeQuals.length + (activeCat ? 1 : 0)}>
@@ -441,6 +456,9 @@ export default function Library({ initialClipId, searchQuery }: LibraryProps) {
           : (
             <DetailPanel
               clip={selected}
+              fullscreenHref={selected ? clipHref(selected.capture.id) : null}
+              startFullscreen={!!selected && selected.capture.id === pendingFullscreenId}
+              onFullscreenStarted={() => setPendingFullscreenId(null)}
               onDelete={handleSingleDelete}
               onUpdateNote={updateClipNote}
               bodies={bodies}
