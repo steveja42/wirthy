@@ -7,6 +7,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { getOwnProfileRelays, onRelayModeChange } from '@/lib/constants';
 import type { AuthorProfile } from '@/lib/nostr/profiles';
 
 const cache = new Map<string, AuthorProfile>();
@@ -16,10 +17,15 @@ export function useOwnProfile(pubkey: string | null): AuthorProfile | null {
   // during render (fall back to that pubkey's cache entry) instead of being
   // reset by a setState at the top of the effect below.
   const [entry, setEntry] = useState<{ pubkey: string; profile: AuthorProfile } | null>(null);
+  // Bumped when the relay mode flips (incl. the stored mode applied at boot, which can
+  // land after this subscribed), so the subscription moves to the new relay set.
+  const [relayEpoch, setRelayEpoch] = useState(0);
 
   const profile = pubkey
     ? (entry?.pubkey === pubkey ? entry.profile : cache.get(pubkey) ?? null)
     : null;
+
+  useEffect(() => onRelayModeChange(() => setRelayEpoch((e) => e + 1)), []);
 
   useEffect(() => {
     if (!pubkey) return;
@@ -38,7 +44,7 @@ export function useOwnProfile(pubkey: string | null): AuthorProfile | null {
             cache.set(pubkey, p);
             setEntry({ pubkey, profile: p });
           }
-        });
+        }, getOwnProfileRelays());
       } catch {
         /* keep whatever the cache gave us */
       }
@@ -48,7 +54,7 @@ export function useOwnProfile(pubkey: string | null): AuthorProfile | null {
       cancelled = true;
       cleanup?.();
     };
-  }, [pubkey]);
+  }, [pubkey, relayEpoch]);
 
   return profile;
 }

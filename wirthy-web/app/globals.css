@@ -527,6 +527,41 @@ a { color: inherit; }
 }
 
 .topbar-right { display: flex; align-items: center; gap: 10px; }
+/* The signed-in user's verified NIP-05, beside the Nostr status dot. */
+.topbar-nip05 {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--ink-2);
+  max-width: 220px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+@media (max-width: 900px) {
+  .topbar-nip05 { max-width: 140px; }
+}
+
+/* Phone navbar: brand + nav on row 1, the search box on its own full-width row 2. */
+@media (max-width: 640px) {
+  .topbar {
+    grid-template-columns: auto minmax(0, 1fr);
+    padding: 10px 16px;
+    gap: 10px 12px;
+  }
+  .topbar .search {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    max-width: none;
+    padding: 7px 12px;
+  }
+  .topbar .search kbd,
+  .topbar .search-spacer { display: none; }
+  .topbar-right { justify-content: flex-end; gap: 4px; min-width: 0; }
+  .topbar-right .topbar-link { padding: 6px 7px; }
+  .topbar-right .icon-btn { width: 30px; height: 30px; flex-shrink: 0; }
+  .topbar-right .topbar-github,
+  .topbar-right .topbar-nip05 { display: none; }
+}
 .topbar-link {
   font-family: var(--sans);
   font-size: 13px;
@@ -675,77 +710,154 @@ a { color: inherit; }
   opacity: 0.35;
 }
 
-/* Stacked layout (≤900px): left-pane holds sidebar above feed, detail in right col */
-.left-pane {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  height: 100%;
-  overflow: hidden;
-  border-right: 1px solid var(--rule);
-}
-.left-pane .sidebar {
-  border-right: none;
-  border-bottom: 1px solid var(--rule);
-  flex-shrink: 0;
-  max-height: 40%;
-}
-.left-pane .feed-col {
-  flex: 1;
-  height: auto;
-  min-height: 0;
-}
-
 @media (max-width: 760px) {
   .clip { grid-template-columns: 1fr; }
 }
 
-/* Sidebar */
-.sidebar {
-  border-right: 1px solid var(--rule);
-  padding: 28px 0;
+/* Explore / Clips page: a viewport-tall column (topbar, then the shell), so the shell
+   fills whatever the topbar leaves — it is two rows tall on a phone. */
+.feed-page {
   display: flex; flex-direction: column;
-  overflow: hidden;
+  height: 100vh;
+  height: 100dvh;
 }
-.sidebar-head {
-  flex-shrink: 0;
-  padding: 0 20px 20px;
-  border-bottom: 2px solid var(--ink-3);
-}
-.sidebar-head .feed-title {
-  font-size: 22px;
-}
-.sidebar-scroll {
+/* Toolbar row above the feed | detail grid. */
+.feed-shell {
   flex: 1;
   min-height: 0;
+  display: flex; flex-direction: column;
+}
+.feed-shell > .main {
+  flex: 1;
+  min-height: 0;
+  height: auto;
+}
+/* Wraps the detail so a phone can show a Back button above it. */
+.detail-pane {
+  display: flex; flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+.detail-pane > :last-child { flex: 1; min-height: 0; }
+.detail-back {
+  display: none;
+  flex: none;
+  align-items: center; gap: 6px;
+  padding: 10px 16px;
+  border: 0;
+  border-bottom: 1px solid var(--rule);
+  background: var(--paper);
+  font-family: var(--sans);
+  font-size: 13px;
+  color: var(--ink-2);
+  cursor: pointer;
+  text-align: left;
+}
+/* Stream view has no feed column, so the stream's divider would sit on the window edge. */
+.main:not(.main--has-feed) .detail-stream { border-left: 0; }
+
+.feed-toolbar {
+  flex: none;
+  position: relative;
+  z-index: 20;
+  display: flex; align-items: center; flex-wrap: wrap;
+  gap: 8px 14px;
+  padding: 10px 24px;
+  border-bottom: 1px solid var(--rule);
+  background: var(--paper);
+}
+.feed-toolbar .feed-title { font-size: 20px; white-space: nowrap; }
+.feed-toolbar .feed-controls { margin-left: auto; }
+/* The pills sit inline in the toolbar; the button already says "Filters". */
+.feed-toolbar .active-filters {
+  padding: 0; border: 0; min-height: 0; background: transparent;
+  flex: 0 1 auto; min-width: 0;
+}
+.feed-toolbar .active-filters .label { display: none; }
+
+/* Collapsed filter widget: hover (pointer devices) or click opens the panel. */
+.filter-widget { position: relative; }
+.filter-widget-btn {
+  display: flex; align-items: center; gap: 6px;
+  font-family: var(--sans);
+  font-size: 12px;
+  color: var(--ink-2);
+  border: 1px solid var(--rule-soft);
+  padding: 6px 10px;
+  border-radius: 7px;
+  background: var(--paper-2);
+  cursor: pointer;
+  transition: background 120ms, border-color 120ms;
+}
+.filter-widget-btn:hover,
+.filter-widget--open .filter-widget-btn { background: var(--paper-3); border-color: var(--rule); color: var(--ink); }
+.filter-widget-btn.pinned { border-color: var(--ink-4); }
+.filter-widget-count {
+  font-family: var(--mono);
+  font-size: 10px;
+  min-width: 16px; height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--paper);
+  display: grid; place-items: center;
+}
+.filter-widget-panel {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  /* The 6px gap is bridged by .filter-widget--open::after so hover survives crossing it. */
+  margin-top: 6px;
+  width: 280px;
+  max-height: calc(100vh - 160px);
   overflow-y: auto;
   scrollbar-color: var(--rule) transparent;
-  padding: 12px 14px 0;
+  padding: 14px;
   display: flex; flex-direction: column; gap: 16px;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(26,23,20,0.14), 0 2px 6px rgba(26,23,20,0.06);
 }
-.sidebar-scroll .feed-controls {
-  flex-wrap: wrap;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--rule);
+.filter-widget--open::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0; top: 100%;
+  height: 8px;
 }
-.sidebar-scroll .sort {
-  font-size: 11px;
-  padding: 5px 6px;
-}
-.sidebar-scroll .density button {
-  width: 22px;
-}
-.sidebar-scroll > .side-section-label,
-.sidebar-scroll .filters > .side-section-label {
+.filter-panel { display: flex; flex-direction: column; gap: 16px; }
+.filter-panel .filters > .side-section-label {
   padding-top: 4px;
   border-top: 1px solid var(--rule);
 }
-/* Directly under the Sort/View row, .feed-controls' own bottom rule is already
-   the separator — a second rule right below it read as a doubled line. */
-.sidebar-scroll .feed-controls + .side-section-label {
-  padding-top: 0;
-  border-top: 0;
+
+/* Phone: one pane at a time. The list, then the opened item with a Back button.
+   Kept after the toolbar/widget rules so it overrides them; !important beats the
+   column widths ResizableLayout sets inline. */
+@media (max-width: 760px) {
+  .feed-shell > .main { grid-template-columns: minmax(0, 1fr) !important; }
+  .feed-shell .col-resizer { display: none; }
+  .main--has-feed:not(.main--detail-open) > .detail-pane { display: none; }
+  .main--has-feed.main--detail-open > .feed-col { display: none; }
+  .main--has-feed .detail-back { display: flex; }
+  .detail-pane .detail,
+  .detail-pane .detail-stream { border-left: 0; }
+
+  .feed-toolbar { padding: 8px 16px; gap: 8px 10px; }
+  /* Outranks body.style-studio .feed-title (24px). */
+  .feed-shell .feed-toolbar .feed-title { font-size: 19px; }
+  .feed-toolbar .sort { font-size: 11px; padding: 5px 7px; }
+  /* Pills drop to their own row so title, Filters and Sort/View share the first. */
+  .feed-toolbar .active-filters { order: 1; flex-basis: 100%; }
+  /* Anchor the panel to the full-width toolbar instead of the button, so it fits on screen. */
+  .filter-widget { position: static; }
+  .filter-widget-panel {
+    left: 12px; right: 12px;
+    width: auto;
+    max-height: 70dvh;
+  }
 }
+
 .side-section-label {
   font-family: var(--mono);
   font-size: 10px;
@@ -837,7 +949,7 @@ a { color: inherit; }
 .follow .handle { font-family: var(--mono); font-size: 10px; color: var(--ink-4); margin-left: auto; }
 .follows-empty { font-size: 12px; color: var(--ink-4); padding: 6px 8px; line-height: 1.4; }
 
-/* Collapsible sidebar sections (Home sidebar only — /clips keeps the plain
+/* Collapsible Filters-panel sections (Explore only — /clips keeps the plain
    .side-section-label / .axis-filter-head headings). */
 .side-collapse-head {
   width: 100%;
@@ -3117,7 +3229,6 @@ a { color: inherit; }
   grid-template-columns: 1fr;
   min-height: 0;
 }
-.app.mobile .sidebar { display: none; }
 .app.mobile .detail { display: none; }
 .app.mobile .feed-head { padding: 18px 16px 14px; }
 .app.mobile .feed-title { font-size: 24px; }

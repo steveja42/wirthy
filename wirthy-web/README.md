@@ -89,7 +89,7 @@ The cross-project Playwright e2e suite lives at the monorepo root — run `pnpm 
 | [components/chrome/TopBar.tsx](components/chrome/TopBar.tsx) | Site-wide navigation bar |
 | [components/chrome/SettingsModal.tsx](components/chrome/SettingsModal.tsx) | Settings — relays, categories, import/export |
 | [components/layout/ResizableLayout.tsx](components/layout/ResizableLayout.tsx) | Resizable two-pane layout |
-| [components/layout/CollapsibleSection.tsx](components/layout/CollapsibleSection.tsx) | Collapsible sidebar section |
+| [components/layout/CollapsibleSection.tsx](components/layout/CollapsibleSection.tsx) | Collapsible Filters-panel section |
 | [components/feed/CastFeed.tsx](components/feed/CastFeed.tsx) | Public Home feed list |
 | [components/feed/ClipRow.tsx](components/feed/ClipRow.tsx) | Single clip row in the feed |
 | [components/feed/DetailPanel.tsx](components/feed/DetailPanel.tsx) | Clip detail side panel |
@@ -148,7 +148,7 @@ The cross-project Playwright e2e suite lives at the monorepo root — run `pnpm 
 | [hooks/useFollowList.ts](hooks/useFollowList.ts) | Reads the signed-in identity's follow list |
 | [hooks/useFollowMutation.ts](hooks/useFollowMutation.ts) | Follow / unfollow (publishes kind 3) |
 | [hooks/useReadCasts.ts](hooks/useReadCasts.ts) | Read/unread tracking for the feed |
-| [hooks/useSidebarSections.ts](hooks/useSidebarSections.ts) | Persisted collapse state for sidebar sections |
+| [hooks/useSidebarSections.ts](hooks/useSidebarSections.ts) | Persisted collapse state for Filters-panel sections |
 
 ---
 

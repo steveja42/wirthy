@@ -1,5 +1,5 @@
 // Sort + List/Stream view toggle row, shared by the Explore feed and the private
-// Library sidebar. 'list' shows sidebar + item list + a single detail pane; 'focus'
+// Library toolbars. 'list' shows item list + a single detail pane; 'focus'
 // (Stream) hides the item list and shows every filtered item's full detail, stacked
 // and scrollable.
 

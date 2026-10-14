@@ -97,7 +97,7 @@ export default function ExploreClient() {
   };
 
   return (
-    <div style={{ position: 'relative' }}>
+    <div className="feed-page" style={{ position: 'relative' }}>
       <TopBar
         auth={auth}
         onSignIn={() => setSignInOpen(true)}

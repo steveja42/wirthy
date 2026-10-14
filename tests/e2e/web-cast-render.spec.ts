@@ -38,7 +38,11 @@ function loadCardEvent(slug: string): { event: NostrEvent; title: string } {
 
 async function mockRelayWith(page: Page, event: NostrEvent): Promise<void> {
   await page.addInitScript(() => {
-    try { localStorage.setItem('wirthy.relayMode', 'production'); } catch { /* ignore */ }
+    try {
+      localStorage.setItem('wirthy.relayMode', 'production');
+      // A returning visitor: the first-visit popover would cover the first feed row.
+      localStorage.setItem('wirthy.seenHero', '1');
+    } catch { /* ignore */ }
   });
   await page.routeWebSocket(/^wss:\/\//, (ws) => {
     ws.onMessage((message: string | Buffer) => {

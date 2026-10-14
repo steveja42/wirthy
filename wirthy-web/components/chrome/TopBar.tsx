@@ -19,7 +19,7 @@ import StatusDot from '@/components/auth/StatusDot';
 import SettingsModal from '@/components/chrome/SettingsModal';
 import { getActiveRelays, onRelayModeChange } from '@/lib/constants';
 import { GITHUB_REPO_URL } from '@/lib/support';
-import { authorDisplayName } from '@/lib/nostr/profiles';
+import { authorDisplayName, nip05DisplayName } from '@/lib/nostr/profiles';
 import { useOwnProfile } from '@/hooks/useOwnProfile';
 import type { AuthState } from '@/lib/types';
 
@@ -84,6 +84,8 @@ export default function TopBar({ auth, onSignIn, brandHasPopover, onBrandClick, 
   // the user's own identity, not attribution on a cast, so an unverified name is fine.
   const ownProfile = useOwnProfile(auth.pubkey);
   const identityLabel = auth.pubkey ? authorDisplayName(auth.pubkey, ownProfile ?? undefined) : '';
+  // Shown as visible text only once verified against the domain's nostr.json.
+  const verifiedNip05 = auth.status !== 'guest' && ownProfile?.verified ? ownProfile.nip05 : undefined;
 
   useEffect(() => onRelayModeChange(() => setRelayCount(getActiveRelays().length)), []);
 
@@ -176,7 +178,7 @@ export default function TopBar({ auth, onSignIn, brandHasPopover, onBrandClick, 
           href={GITHUB_REPO_URL}
           target="_blank"
           rel="noopener noreferrer"
-          className="icon-btn"
+          className="icon-btn topbar-github"
           title="Repository on GitHub"
         >
           <GitHubIcon />
@@ -184,6 +186,9 @@ export default function TopBar({ auth, onSignIn, brandHasPopover, onBrandClick, 
         <button className="icon-btn" title="Settings" onClick={() => setSettingsOpen(true)}>
           <SettingsIcon />
         </button>
+        {verifiedNip05 && (
+          <span className="topbar-nip05" title={verifiedNip05}>{nip05DisplayName(verifiedNip05)}</span>
+        )}
         <StatusDot
           variant="nostr"
           connected={auth.status !== 'guest'}

@@ -38,6 +38,19 @@ export function authorLabel(pubkey: string, profile?: AuthorProfile): string {
   try { return `${npubEncode(pubkey).slice(0, 12)}…`; } catch { return pubkey.slice(0, 12); }
 }
 
+// Kind-0 is replaceable, but some relays (relay.ditto.pub) still serve every old version,
+// in any order. True only for an event newer than the last one seen from its author.
+export function isNewestReplaceable(seen: Map<string, number>, e: Event): boolean {
+  if (e.created_at <= (seen.get(e.pubkey) ?? -1)) return false;
+  seen.set(e.pubkey, e.created_at);
+  return true;
+}
+
+// NIP-05's root identifier `_@domain` is conventionally shown as just the domain.
+export function nip05DisplayName(nip05: string): string {
+  return nip05.startsWith('_@') ? nip05.slice(2) : nip05;
+}
+
 // Like authorLabel, but also accepts an unverified kind-0 display name. Used by the
 // Publishers filter list, where a self-declared name is a better handle for picking
 // someone out of a list than a truncated npub — the stricter authorLabel stays the
@@ -52,13 +65,15 @@ export function authorDisplayName(pubkey: string, profile?: AuthorProfile): stri
 export function subscribeAuthorProfiles(
   pubkeys: string[],
   onUpdate: (profiles: Map<string, AuthorProfile>) => void,
+  relayUrls: string[] = getActiveRelays(),
 ): () => void {
   const pool = new SimplePool();
-  const relays = [...getActiveRelays()];
+  const relays = [...relayUrls];
   log(LL.NORMAL, '[nostr] subscribeAuthorProfiles connecting to', relays, 'for', pubkeys.length, 'author(s)');
   let closed = false;
 
   const profiles = new Map<string, AuthorProfile>();
+  const newest = new Map<string, number>();
 
   const emit = () => {
     if (closed) return;
@@ -94,7 +109,7 @@ export function subscribeAuthorProfiles(
   const filter: Filter = { kinds: [0], authors: pubkeys };
   const sub = pool.subscribeMany(relays, filter, {
     onevent: (e: Event) => {
-      if (closed) return;
+      if (closed || !isNewestReplaceable(newest, e)) return;
       const meta = parseProfileContent(e.content);
       profiles.set(e.pubkey, { pubkey: e.pubkey, ...meta });
       emit();

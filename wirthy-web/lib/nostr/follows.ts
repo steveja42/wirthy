@@ -7,6 +7,7 @@ import { SimplePool, type Event, type Filter } from 'nostr-tools';
 import { npubEncode } from 'nostr-tools/nip19';
 import { getActiveRelays } from '@/lib/constants';
 import { LL, log } from '@/lib/logger';
+import { isNewestReplaceable } from './profiles';
 
 export interface FollowProfile {
   pubkey: string;
@@ -36,6 +37,7 @@ export function subscribeFollowList(
   // pubkey -> profile; preserves contact-list order via `order`.
   const profiles = new Map<string, FollowProfile>();
   const order: string[] = [];
+  const newestMeta = new Map<string, number>();
 
   const emit = () => {
     if (closed) return;
@@ -59,7 +61,7 @@ export function subscribeFollowList(
         const metaFilter: Filter = { kinds: [0], authors: followed };
         const metaSub = pool.subscribeMany(relays, metaFilter, {
           onevent: (m: Event) => {
-            if (closed) return;
+            if (closed || !isNewestReplaceable(newestMeta, m)) return;
             profiles.set(m.pubkey, { pubkey: m.pubkey, ...parseProfileContent(m.content) });
             emit();
           },

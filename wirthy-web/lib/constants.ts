@@ -141,6 +141,12 @@ export function getActiveRelays(): string[] {
   return activeRelays;
 }
 
+// Relays for reading the signed-in user's OWN kind-0. That's real public identity data,
+// never a test cast, so local mode still asks the public relays (it only adds the local one).
+export function getOwnProfileRelays(): string[] {
+  return currentMode === 'local' ? [...new Set([...activeRelays, ...DEFAULT_RELAYS])] : activeRelays;
+}
+
 export function getRelayRows(): RelayRow[] {
   return relayRows;
 }

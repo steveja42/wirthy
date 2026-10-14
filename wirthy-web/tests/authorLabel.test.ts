@@ -6,7 +6,8 @@
 import { describe, it, expect } from 'vitest';
 import { generateSecretKey, getPublicKey } from 'nostr-tools/pure';
 import { npubEncode } from 'nostr-tools/nip19';
-import { authorLabel, authorDisplayName } from '@/lib/nostr/profiles';
+import type { Event } from 'nostr-tools';
+import { authorLabel, authorDisplayName, isNewestReplaceable, nip05DisplayName } from '@/lib/nostr/profiles';
 
 const pubkey = getPublicKey(generateSecretKey());
 
@@ -65,5 +66,34 @@ describe('authorDisplayName', () => {
     const label = authorDisplayName(pubkey);
     expect(label).toBe(npubSlice);
     expect(label).not.toBe(pubkey);
+  });
+});
+
+// relay.ditto.pub serves every historic kind-0, oldest last; the newest must win.
+describe('isNewestReplaceable', () => {
+  const ev = (pk: string, created_at: number) => ({ pubkey: pk, created_at } as Event);
+
+  it('ignores an older version that arrives after a newer one', () => {
+    const seen = new Map<string, number>();
+    expect(isNewestReplaceable(seen, ev(pubkey, 200))).toBe(true);
+    expect(isNewestReplaceable(seen, ev(pubkey, 100))).toBe(false);
+    expect(isNewestReplaceable(seen, ev(pubkey, 200))).toBe(false);
+    expect(isNewestReplaceable(seen, ev(pubkey, 300))).toBe(true);
+  });
+
+  it('tracks each author separately', () => {
+    const seen = new Map<string, number>();
+    expect(isNewestReplaceable(seen, ev('a', 200))).toBe(true);
+    expect(isNewestReplaceable(seen, ev('b', 100))).toBe(true);
+  });
+});
+
+describe('nip05DisplayName', () => {
+  it('shows a root identifier (_@domain) as just the domain', () => {
+    expect(nip05DisplayName('_@wirthy.app')).toBe('wirthy.app');
+  });
+
+  it('leaves an ordinary name@domain unchanged', () => {
+    expect(nip05DisplayName('alice@wirthy.app')).toBe('alice@wirthy.app');
   });
 });

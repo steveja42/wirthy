@@ -113,6 +113,7 @@ test.describe('Explore filters in the URL', () => {
     for (const f of feedReqs(reqs)) expect(f.authors).toEqual([PK_A]);
 
     // The path names the publisher, so the query never repeats it — other filters still sync.
+    await page.locator('.filter-widget-btn').click();
     await page.locator('.pip[title="Worthwhile"]').click();
     await expect.poll(() => new URL(page.url()).searchParams.getAll('signal')).toEqual(['worthwhile']);
     expect(new URL(page.url()).pathname).toBe(`/p/${npubEncode(PK_A)}`);
@@ -136,6 +137,7 @@ test.describe('Explore filters in the URL', () => {
     await page.goto('/explore?popover=0');
     await expect(row(page, 'Beta Post')).toBeVisible({ timeout: 15_000 });
 
+    await page.locator('.filter-widget-btn').click();
     await page.locator('.pip[title="Worthwhile"]').click();
     await expect(row(page, 'Beta Post')).toHaveCount(0);
     await expect.poll(() => new URL(page.url()).searchParams.getAll('signal')).toEqual(['worthwhile']);

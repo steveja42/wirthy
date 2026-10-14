@@ -1,7 +1,7 @@
 // Main public Cast feed shell — the Explore page's primary content area.
 // Filter state (category, signals, qualifiers, authors, unread, search) is controlled by
 // the page, which mirrors it into the URL; this derives the filtered clip list and renders
-// the three-column layout: Sidebar / feed list / DetailPanel.
+// a toolbar (title, Filters widget, active pills, sort/view) above feed list / DetailPanel.
 
 'use client';
 
@@ -17,6 +17,7 @@ import { authorDisplayName, type AuthorProfile } from '@/lib/nostr/profiles';
 import ClipRow from './ClipRow';
 import DetailPanel from './DetailPanel';
 import FilterStrip from './FilterStrip';
+import FilterWidget from './FilterWidget';
 import ViewControls, { type SortOrder, type ViewMode } from './ViewControls';
 import ResizableLayout from '@/components/layout/ResizableLayout';
 import CollapsibleSection from '@/components/layout/CollapsibleSection';
@@ -24,17 +25,16 @@ import AuthorContextMenu from '@/components/menu/AuthorContextMenu';
 import { useSidebarSections } from '@/hooks/useSidebarSections';
 import { useFollowMutation } from '@/hooks/useFollowMutation';
 
-// One publisher in the sidebar list: an author present in the loaded feed, with how
+// One publisher in the filter panel: an author present in the loaded feed, with how
 // many of the loaded posts they published.
 interface Publisher {
   pubkey: string;
   count: number;
 }
 
-// Left sidebar: View shortcuts, follows list, publishers list, and
+// Filters panel body: View shortcuts, follows list, publishers list, and
 // signal/qualifier/category filter controls.
-interface SidebarProps {
-  title?: string;
+interface FilterPanelProps {
   activeCat: string | null;
   setActiveCat: (c: string | null) => void;
   activeSignals: string[];
@@ -55,10 +55,6 @@ interface SidebarProps {
   publishers: Publisher[];
   authors: Map<string, AuthorProfile>;
   isSignedIn: boolean;
-  sortOrder: SortOrder;
-  setSortOrder: (o: SortOrder) => void;
-  viewMode: ViewMode;
-  setViewMode: (m: ViewMode) => void;
   onAuthorContextMenu: (pubkey: string, x: number, y: number) => void;
 }
 
@@ -73,8 +69,7 @@ function avatarInitial(pubkey: string, name?: string): string {
   return (name?.trim()?.[0] ?? toNpub(pubkey)[5] ?? '·').toUpperCase();
 }
 
-function Sidebar({
-  title = 'Explore',
+function ExploreFilterPanel({
   activeCat, setActiveCat,
   activeSignals, toggleSignal,
   activeQuals, toggleQual, qualOptions,
@@ -87,184 +82,170 @@ function Sidebar({
   publishers,
   authors,
   isSignedIn,
-  sortOrder,
-  setSortOrder,
-  viewMode,
-  setViewMode,
   onAuthorContextMenu,
-}: SidebarProps) {
+}: FilterPanelProps) {
   const { open, toggle } = useSidebarSections();
 
   return (
-    <aside className="sidebar">
-      <div className="sidebar-head">
-        <h1 className="feed-title"><em>{title}</em></h1>
-      </div>
+    <div className="filter-panel">
+      <CollapsibleSection title="View" open={open.view} onToggle={() => toggle('view')}>
+        <ul className="nav-list">
+          <li
+            className={`nav-item ${activeCat === null && activeAuthors.length === 0 && !unreadOnly ? 'active' : ''}`}
+            onClick={clearFilters}
+          >
+            All wirthy <span className="nav-count">{count}</span>
+          </li>
+          <li
+            className={`nav-item ${unreadOnly ? 'active' : ''}`}
+            onClick={() => setUnreadOnly(!unreadOnly)}
+          >
+            Unread <span className="nav-count">{unreadCount}</span>
+          </li>
+        </ul>
+      </CollapsibleSection>
 
-      <div className="sidebar-scroll">
-        <ViewControls sortOrder={sortOrder} setSortOrder={setSortOrder} viewMode={viewMode} setViewMode={setViewMode} />
+      <CollapsibleSection
+        title="Following"
+        badge={<span className="count">{follows.length}</span>}
+        open={open.following}
+        onToggle={() => toggle('following')}
+      >
+        {!isSignedIn ? (
+          <div className="follows-empty">Sign in to see who you follow.</div>
+        ) : follows.length === 0 ? (
+          <div className="follows-empty">No follows yet.</div>
+        ) : (
+          <div className="follows">
+            {follows.map((f) => (
+              <div
+                key={f.pubkey}
+                className={`follow ${activeAuthors.includes(f.pubkey) ? 'active' : ''}`}
+                onClick={() => toggleAuthor(f.pubkey)}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onAuthorContextMenu(f.pubkey, e.clientX, e.clientY);
+                }}
+                title={toNpub(f.pubkey)}
+                role="checkbox"
+                aria-checked={activeAuthors.includes(f.pubkey)}
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleAuthor(f.pubkey); }
+                }}
+              >
+                {f.picture
+                  ? <img className="av av-img" src={f.picture} alt="" />
+                  : <span className="av">{avatarInitial(f.pubkey, f.name)}</span>}
+                <span className="name">{f.name || `${toNpub(f.pubkey).slice(0, 12)}…`}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </CollapsibleSection>
 
-        <div className="side-section-label">Filter</div>
-
-        <CollapsibleSection title="View" open={open.view} onToggle={() => toggle('view')}>
-          <ul className="nav-list">
-            <li
-              className={`nav-item ${activeCat === null && activeAuthors.length === 0 && !unreadOnly ? 'active' : ''}`}
-              onClick={clearFilters}
-            >
-              All wirthy <span className="nav-count">{count}</span>
-            </li>
-            <li
-              className={`nav-item ${unreadOnly ? 'active' : ''}`}
-              onClick={() => setUnreadOnly(!unreadOnly)}
-            >
-              Unread <span className="nav-count">{unreadCount}</span>
-            </li>
-          </ul>
-        </CollapsibleSection>
-
-        <CollapsibleSection
-          title="Following"
-          badge={<span className="count">{follows.length}</span>}
-          open={open.following}
-          onToggle={() => toggle('following')}
-        >
-          {!isSignedIn ? (
-            <div className="follows-empty">Sign in to see who you follow.</div>
-          ) : follows.length === 0 ? (
-            <div className="follows-empty">No follows yet.</div>
-          ) : (
-            <div className="follows">
-              {follows.map((f) => (
+      <CollapsibleSection
+        title="Publishers"
+        badge={<span className="count">{publishers.length}</span>}
+        open={open.publishers}
+        onToggle={() => toggle('publishers')}
+      >
+        {publishers.length === 0 ? (
+          <div className="follows-empty">No publishers yet.</div>
+        ) : (
+          <div className="follows">
+            {publishers.map((p) => {
+              const profile = authors.get(p.pubkey);
+              const label = authorDisplayName(p.pubkey, profile);
+              const selected = activeAuthors.includes(p.pubkey);
+              return (
                 <div
-                  key={f.pubkey}
-                  className={`follow ${activeAuthors.includes(f.pubkey) ? 'active' : ''}`}
-                  onClick={() => toggleAuthor(f.pubkey)}
+                  key={p.pubkey}
+                  className={`follow ${selected ? 'active' : ''}`}
+                  onClick={() => toggleAuthor(p.pubkey)}
                   onContextMenu={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    onAuthorContextMenu(f.pubkey, e.clientX, e.clientY);
+                    onAuthorContextMenu(p.pubkey, e.clientX, e.clientY);
                   }}
-                  title={toNpub(f.pubkey)}
+                  title={toNpub(p.pubkey)}
                   role="checkbox"
-                  aria-checked={activeAuthors.includes(f.pubkey)}
+                  aria-checked={selected}
                   tabIndex={0}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleAuthor(f.pubkey); }
+                    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleAuthor(p.pubkey); }
                   }}
                 >
-                  {f.picture
-                    ? <img className="av av-img" src={f.picture} alt="" />
-                    : <span className="av">{avatarInitial(f.pubkey, f.name)}</span>}
-                  <span className="name">{f.name || `${toNpub(f.pubkey).slice(0, 12)}…`}</span>
+                  <span className="av">{avatarInitial(p.pubkey, profile?.name)}</span>
+                  <span className="name">{label}</span>
+                  <span className="pub-count">{p.count}</span>
                 </div>
-              ))}
-            </div>
-          )}
-        </CollapsibleSection>
+              );
+            })}
+          </div>
+        )}
+      </CollapsibleSection>
 
+      <div className="filters">
         <CollapsibleSection
-          title="Publishers"
-          badge={<span className="count">{publishers.length}</span>}
-          open={open.publishers}
-          onToggle={() => toggle('publishers')}
+          title="Signal"
+          open={open.signal}
+          onToggle={() => toggle('signal')}
         >
-          {publishers.length === 0 ? (
-            <div className="follows-empty">No publishers yet.</div>
-          ) : (
-            <div className="follows">
-              {publishers.map((p) => {
-                const profile = authors.get(p.pubkey);
-                const label = authorDisplayName(p.pubkey, profile);
-                const selected = activeAuthors.includes(p.pubkey);
-                return (
-                  <div
-                    key={p.pubkey}
-                    className={`follow ${selected ? 'active' : ''}`}
-                    onClick={() => toggleAuthor(p.pubkey)}
-                    onContextMenu={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      onAuthorContextMenu(p.pubkey, e.clientX, e.clientY);
-                    }}
-                    title={toNpub(p.pubkey)}
-                    role="checkbox"
-                    aria-checked={selected}
-                    tabIndex={0}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleAuthor(p.pubkey); }
-                    }}
-                  >
-                    <span className="av">{avatarInitial(p.pubkey, profile?.name)}</span>
-                    <span className="name">{label}</span>
-                    <span className="pub-count">{p.count}</span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+          <div className="axis-range">
+            {SIGNAL_LEVELS.map((lvl) => (
+              <div
+                key={lvl}
+                className={`pip ${activeSignals.includes(lvl) ? 'active signal' : ''}`}
+                onClick={() => toggleSignal(lvl)}
+                title={lvl}
+              >
+                {lvl[0]}
+              </div>
+            ))}
+          </div>
         </CollapsibleSection>
 
-        <div className="filters">
+        {qualOptions.length > 0 && (
           <CollapsibleSection
-            title="Signal"
-            open={open.signal}
-            onToggle={() => toggle('signal')}
-          >
-            <div className="axis-range">
-              {SIGNAL_LEVELS.map((lvl) => (
-                <div
-                  key={lvl}
-                  className={`pip ${activeSignals.includes(lvl) ? 'active signal' : ''}`}
-                  onClick={() => toggleSignal(lvl)}
-                  title={lvl}
-                >
-                  {lvl[0]}
-                </div>
-              ))}
-            </div>
-          </CollapsibleSection>
-
-          {qualOptions.length > 0 && (
-            <CollapsibleSection
-              title="Qualifiers"
-              open={open.qualifiers}
-              onToggle={() => toggle('qualifiers')}
-            >
-              <div className="cat-filter">
-                {qualOptions.map((qual) => (
-                  <button
-                    key={qual}
-                    className={`cat-chip ${activeQuals.includes(qual) ? 'active' : ''}`}
-                    onClick={() => toggleQual(qual)}
-                  >
-                    {qual}
-                  </button>
-                ))}
-              </div>
-            </CollapsibleSection>
-          )}
-
-          <CollapsibleSection
-            title="Category"
-            open={open.category}
-            onToggle={() => toggle('category')}
+            title="Qualifiers"
+            open={open.qualifiers}
+            onToggle={() => toggle('qualifiers')}
           >
             <div className="cat-filter">
-              {Object.entries(CATEGORIES).map(([key, cat]) => (
+              {qualOptions.map((qual) => (
                 <button
-                  key={key}
-                  className={`cat-chip ${activeCat === key ? 'active' : ''}`}
-                  onClick={() => setActiveCat(activeCat === key ? null : key)}
+                  key={qual}
+                  className={`cat-chip ${activeQuals.includes(qual) ? 'active' : ''}`}
+                  onClick={() => toggleQual(qual)}
                 >
-                  {cat.label}
+                  {qual}
                 </button>
               ))}
             </div>
           </CollapsibleSection>
-        </div>
+        )}
+
+        <CollapsibleSection
+          title="Category"
+          open={open.category}
+          onToggle={() => toggle('category')}
+        >
+          <div className="cat-filter">
+            {Object.entries(CATEGORIES).map(([key, cat]) => (
+              <button
+                key={key}
+                className={`cat-chip ${activeCat === key ? 'active' : ''}`}
+                onClick={() => setActiveCat(activeCat === key ? null : key)}
+              >
+                {cat.label}
+              </button>
+            ))}
+          </div>
+        </CollapsibleSection>
       </div>
-    </aside>
+    </div>
   );
 }
 
@@ -299,7 +280,7 @@ interface CastFeedProps {
   /** Controlled filter state (the page mirrors it into the URL). `q` is the top-bar search. */
   filters: FeedFilters;
   onFiltersChange: (f: FeedFilters) => void;
-  /** Sidebar heading; defaults to "Explore" (a publisher page passes "Posts by …"). */
+  /** Toolbar heading; defaults to "Explore" (a publisher page passes "Posts by …"). */
   title?: string;
   follows?: FollowProfile[];
   authors?: Map<string, AuthorProfile>;
@@ -343,9 +324,11 @@ export default function CastFeed({ clips, filters, onFiltersChange, title, follo
   const searchQuery = filters.q;
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [sortOrder, setSortOrder] = useState<SortOrder>('recent');
-  // 'list' shows sidebar + feed list + detail; 'focus' hides the feed list so the
+  // 'list' shows feed list + detail; 'focus' hides the feed list so the
   // detail/reading panel fills the remaining width.
   const [viewMode, setViewMode] = useState<ViewMode>('list');
+  // Phone layout only: whether the opened item replaces the list.
+  const [detailOpen, setDetailOpen] = useState(false);
 
   const q = searchQuery?.trim().toLowerCase() ?? '';
 
@@ -422,6 +405,7 @@ export default function CastFeed({ clips, filters, onFiltersChange, title, follo
 
   const handleSelectClip = (id: string) => {
     setSelectedId(id);
+    setDetailOpen(true);
     markRead?.(id);
   };
 
@@ -439,10 +423,11 @@ export default function CastFeed({ clips, filters, onFiltersChange, title, follo
     />
   );
 
+  const activeCount = activeSignals.length + activeQuals.length + (activeCat ? 1 : 0)
+    + activeAuthors.length + (unreadOnly ? 1 : 0);
+
   const feedContent = (
     <main className="feed-col">
-      {filterStrip}
-
       <div className="feed-scroll">
         <div className="feed-list">
           {sorted.length === 0 ? (
@@ -468,7 +453,6 @@ export default function CastFeed({ clips, filters, onFiltersChange, title, follo
 
   const streamContent = (
     <div className="detail-stream">
-      {filterStrip}
       <div className="detail-stream-scroll">
         {sorted.length === 0 ? (
           <div className="feed-empty">
@@ -489,11 +473,11 @@ export default function CastFeed({ clips, filters, onFiltersChange, title, follo
   );
 
   return (
-    <div className="app">
-      <ResizableLayout
-        sidebar={
-          <Sidebar
-            title={title}
+    <div className="app feed-shell">
+      <div className="feed-toolbar">
+        <h1 className="feed-title"><em>{title ?? 'Explore'}</em></h1>
+        <FilterWidget activeCount={activeCount}>
+          <ExploreFilterPanel
             activeCat={activeCat} setActiveCat={setActiveCat}
             activeSignals={activeSignals} toggleSignal={toggleSignal}
             activeQuals={activeQuals} toggleQual={toggleQual} qualOptions={qualOptions}
@@ -506,13 +490,13 @@ export default function CastFeed({ clips, filters, onFiltersChange, title, follo
             publishers={publishers}
             authors={authors}
             isSignedIn={isSignedIn}
-            sortOrder={sortOrder}
-            setSortOrder={setSortOrder}
-            viewMode={viewMode}
-            setViewMode={setViewMode}
             onAuthorContextMenu={openAuthorMenu}
           />
-        }
+        </FilterWidget>
+        {filterStrip}
+        <ViewControls sortOrder={sortOrder} setSortOrder={setSortOrder} viewMode={viewMode} setViewMode={setViewMode} />
+      </div>
+      <ResizableLayout
         feed={feedContent}
         detail={viewMode === 'focus'
           ? streamContent
@@ -524,7 +508,8 @@ export default function CastFeed({ clips, filters, onFiltersChange, title, follo
             />
           )}
         showFeed={viewMode === 'list'}
-        initialSidebarWidth={200}
+        detailOpen={detailOpen}
+        onBack={() => setDetailOpen(false)}
       />
 
       {authorMenu && (

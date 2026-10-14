@@ -32,7 +32,7 @@ export default function LibraryPage() {
   const [searchQuery, setSearchQuery] = useState('');
 
   return (
-    <div>
+    <div className="feed-page">
       <TopBar
         auth={auth}
         onSignIn={() => setSignInOpen(true)}
