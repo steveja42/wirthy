@@ -7,6 +7,7 @@ import { ClipStoreProvider } from '@/lib/bridge/ClipStoreContext';
 import { NostrAuthProvider } from '@/hooks/useNostrAuth';
 import PendingSignModal from '@/components/auth/PendingSignModal';
 import GoatCounter from '@/components/analytics/GoatCounter';
+import { FULLSCREEN_COVER_SCRIPT } from './clips/fullscreen-cover';
 
 // Site-wide defaults. Pages override title/description; the template keeps the brand suffix.
 const DESCRIPTION =
@@ -32,6 +33,9 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: FULLSCREEN_COVER_SCRIPT }} />
+      </head>
       <body className="style-studio">
 <NostrAuthProvider>
           <ClipStoreProvider>{children}</ClipStoreProvider>

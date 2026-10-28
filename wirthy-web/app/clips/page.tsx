@@ -7,6 +7,7 @@ import Library from '@/components/clips/Library';
 import SignInModal from '@/components/auth/SignInModal';
 import { useNostrAuth } from '@/hooks/useNostrAuth';
 import { useBridgeAuth } from '@/hooks/useBridgeAuth';
+import { FULLSCREEN_COVER_ID } from './fullscreen-cover';
 
 function LibraryWithClipId({ searchQuery }: { searchQuery: string }) {
   const searchParams = useSearchParams();
@@ -25,9 +26,9 @@ function LibraryWithClipId({ searchQuery }: { searchQuery: string }) {
   }, []);
 
   // Library has rendered its own fullscreen cover by now; lift the pre-paint style
-  // (added by app/clips/layout.tsx).
+  // (added by app/clips/fullscreen-cover.ts).
   useLayoutEffect(() => {
-    document.getElementById('clip-fullscreen-cover')?.remove();
+    document.getElementById(FULLSCREEN_COVER_ID)?.remove();
   }, []);
 
   return <Library initialClipId={initialClipId} initialFullscreen={initialFullscreen} searchQuery={searchQuery} />;
