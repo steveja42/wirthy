@@ -16,18 +16,13 @@ import { useEffect, useState } from 'react';
 import { npubEncode } from 'nostr-tools/nip19';
 import { subscribeBridge, sendSignedToExtension, sendSignRejectedToExtension } from '@/lib/bridge/extension-bridge';
 import { LL, log } from '@/lib/logger';
+import { WALLET_LATCHED_RE } from '@/lib/nostr/wallet-errors';
 
 const SIGN_TIMEOUT_MS = 30_000;
 
-// Some wallets (nos2x and relatives) latch into a "cancelled" state after a
-// dismissed or stuck approval popup and then reject EVERY subsequent
-// window.nostr call on this page without prompting. The flag lives in the
-// injected window.nostr's closure, which is page-scoped — so only a reload of
-// the signing tab clears it. Retrying from the extension can't:
-// signEventViaWebApp reuses that same tab, hence the same poisoned
-// window.nostr. Detect it and say what actually works instead of surfacing the
-// raw wallet string.
-const WALLET_LATCHED_RE = /rejecting further|until the next reload/i;
+// A latched wallet (see WALLET_LATCHED_RE) can't be cleared by retrying from the
+// extension: signEventViaWebApp reuses this same tab, hence the same poisoned
+// window.nostr. Say what actually works instead of surfacing the raw wallet string.
 
 // "the wirthy.app tab", not "this tab" — this message is relayed back to
 // the extension and shown in the overlay on the page being cast, which is a

@@ -14,6 +14,7 @@ export interface AuthorProfile {
   pubkey: string;
   name?: string;
   nip05?: string;
+  picture?: string;
   verified?: boolean;
 }
 
@@ -22,10 +23,11 @@ export interface AuthorProfile {
 // Key is `${pubkey}|${nip05}` — verification is pubkey-specific.
 const verifyCache = new Map<string, boolean>();
 
-function parseProfileContent(content: string): { name?: string; nip05?: string } {
+function parseProfileContent(content: string): { name?: string; nip05?: string; picture?: string } {
   try {
-    const meta = JSON.parse(content) as { name?: string; display_name?: string; nip05?: string };
-    return { name: meta.display_name || meta.name, nip05: meta.nip05 };
+    const meta = JSON.parse(content) as { name?: string; display_name?: string; nip05?: string; picture?: string };
+    const picture = typeof meta.picture === 'string' && /^https:\/\//i.test(meta.picture) ? meta.picture : undefined;
+    return { name: meta.display_name || meta.name, nip05: meta.nip05, picture };
   } catch {
     return {};
   }

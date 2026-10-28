@@ -13,6 +13,7 @@ import SignInModal from '@/components/auth/SignInModal';
 import { useNostrAuth } from '@/hooks/useNostrAuth';
 import { useBridgeAuth } from '@/hooks/useBridgeAuth';
 import { useAuthorProfiles } from '@/hooks/useAuthorProfiles';
+import { useCastEngagement } from '@/hooks/useCastEngagement';
 import { authorDisplayName, type AuthorProfile } from '@/lib/nostr/profiles';
 import { readSsrAuthor, withSsrAuthor } from '@/lib/nostr/ssr-author';
 import { WEB_STORE_URL } from '@/lib/constants';
@@ -32,7 +33,7 @@ const EMPTY_BODIES: Map<string, ClipBody> = new Map();
 const NO_CLIPS: ClipData[] = [];
 
 export default function CastPageClient() {
-  const { auth, signInPubkey, setNip07Connected } = useNostrAuth();
+  const { auth, nip07Available, signInPubkey, setNip07Connected } = useNostrAuth();
   const { extensionPresent } = useBridgeAuth();
   const [signInOpen, setSignInOpen] = useState(false);
   const [state, setState] = useState<PageState>({ status: 'loading' });
@@ -40,6 +41,7 @@ export default function CastPageClient() {
   const liveAuthors = useAuthorProfiles(clips);
   const ssrAuthor = state.status === 'found' ? state.ssrAuthor : null;
   const authors = useMemo(() => withSsrAuthor(liveAuthors, ssrAuthor), [liveAuthors, ssrAuthor]);
+  const engagement = useCastEngagement(clips, auth, nip07Available);
 
   useEffect(() => {
     let cancelled = false;
@@ -113,6 +115,13 @@ export default function CastPageClient() {
               onBodyFetched={() => {}}
               shareHref={castPath(clip)}
               readOnly
+              engagement={{
+                view: engagement.get(clip),
+                canAct: engagement.canAct,
+                onToggleLike: () => engagement.toggleLike(clip),
+                onReply: (parent, text) => engagement.reply(clip, parent, text),
+                onSignIn: () => setSignInOpen(true),
+              }}
             />
           </>
         )}

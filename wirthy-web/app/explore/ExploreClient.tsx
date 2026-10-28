@@ -32,7 +32,7 @@ interface UrlView {
 
 export default function ExploreClient() {
   const router = useRouter();
-  const { auth, signInPubkey, setNip07Connected, autoSigninError, clearAutoSigninError } = useNostrAuth();
+  const { auth, nip07Available, signInPubkey, setNip07Connected, autoSigninError, clearAutoSigninError } = useNostrAuth();
   const { showPopover, dismiss: dismissPopover } = useFirstVisit();
   // Null until the URL has been read. The page is prerendered without a location, so
   // reading it in a mount effect (not a lazy initialiser) avoids a hydration mismatch,
@@ -141,6 +141,9 @@ export default function ExploreClient() {
         read={read}
         markRead={markRead}
         extensionPresent={extensionPresent}
+        auth={auth}
+        walletAvailable={nip07Available}
+        onSignIn={() => setSignInOpen(true)}
       />
 
       {signInOpen && (

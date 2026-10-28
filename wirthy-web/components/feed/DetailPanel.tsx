@@ -15,6 +15,7 @@ import { useClipVideoPlayers } from '@/components/clips/ClipVideoPlayers';
 import { resolveVideoEmbed } from '@/lib/video-embed';
 import { sanitizePublicHtml } from '@/lib/sanitize-html';
 import ShareButton from './ShareButton';
+import { CastReplies, LikeButton, ReplyCountButton, type CastEngagementProps } from './CastEngagement';
 
 // history.state key marking the entry a fullscreen post pushed (value: the clip id).
 const FULLSCREEN_STATE_KEY = 'wirthyFullscreen';
@@ -38,6 +39,8 @@ interface DetailPanelProps {
   onFullscreenStarted?: () => void;
   // Read-only views (a single public cast): no delete, and the note is shown, not editable.
   readOnly?: boolean;
+  // Likes and replies for a public cast. Absent for private clips.
+  engagement?: CastEngagementProps;
 }
 
 function domainOf(url: string): string {
@@ -338,8 +341,11 @@ function renderTextWithBreaks(text: string, imageUrls?: Set<string>): React.Reac
   });
 }
 
-export default function DetailPanel({ clip, author, onDelete, onUpdateNote, bodies, onBodyFetched, onAuthorContextMenu, shareHref, fullscreenHref, startFullscreen = false, onFullscreenStarted, readOnly = false }: DetailPanelProps) {
+export default function DetailPanel({ clip, author, onDelete, onUpdateNote, bodies, onBodyFetched, onAuthorContextMenu, shareHref, fullscreenHref, startFullscreen = false, onFullscreenStarted, readOnly = false, engagement }: DetailPanelProps) {
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const repliesRef = useRef<HTMLElement | null>(null);
+  // Which like bar (header or above the replies) was used, so its error shows beside it.
+  const [likeFrom, setLikeFrom] = useState<'top' | 'bottom'>('top');
   // Click-to-play: delegated on the clip body. The body arrives ASYNCHRONOUSLY
   // (requestClipBody fetches it from the extension after first paint), so the
   // dependency must include whether the body is actually present — keying on
@@ -492,6 +498,15 @@ export default function DetailPanel({ clip, author, onDelete, onUpdateNote, bodi
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
           <h2 className="detail-title" style={{ flex: 1, margin: 0 }}>{capture.title}</h2>
           <div className="detail-actions">
+            {engagement && (
+              <>
+                <LikeButton {...engagement} onToggleLike={() => { setLikeFrom('top'); engagement.onToggleLike(); }} />
+                <ReplyCountButton
+                  count={engagement.view.replyCount}
+                  onClick={() => repliesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                />
+              </>
+            )}
             {shareHref && <ShareButton href={shareHref} title={capture.title} />}
             {!readOnly && (
               <button
@@ -510,6 +525,7 @@ export default function DetailPanel({ clip, author, onDelete, onUpdateNote, bodi
             )}
           </div>
         </div>
+        {likeFrom === 'top' && engagement?.view.error && <div className="engagement-error" role="alert">{engagement.view.error}</div>}
       </div>
 
       <div className="detail-section">
@@ -645,6 +661,15 @@ export default function DetailPanel({ clip, author, onDelete, onUpdateNote, bodi
         }
         return null;
       })()}
+
+      {engagement && (
+        <CastReplies
+          {...engagement}
+          onToggleLike={() => { setLikeFrom('bottom'); engagement.onToggleLike(); }}
+          sectionRef={repliesRef}
+          showLikeError={likeFrom === 'bottom'}
+        />
+      )}
     </aside>
   );
 }

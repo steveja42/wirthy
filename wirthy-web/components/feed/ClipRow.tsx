@@ -9,6 +9,7 @@ import type { ClipData } from '@/lib/types';
 import SignalTag from '@/components/glyph/SignalTag';
 import { CATEGORIES } from '@/lib/constants';
 import { authorLabel, type AuthorProfile } from '@/lib/nostr/profiles';
+import { ReplyIcon, ThumbsUpIcon } from './CastEngagement';
 
 interface ClipRowProps {
   clip: ClipData;
@@ -21,6 +22,8 @@ interface ClipRowProps {
   // Right-click on the caster label. Absent on call sites with no follow
   // concept (e.g. the private Library, which has no public authorPubkey).
   onAuthorContextMenu?: (pubkey: string, x: number, y: number) => void;
+  // Public casts only: like and reply counts from any Nostr client.
+  engagement?: { likes: number; replies: number; liked?: boolean };
 }
 
 function formatDate(ts: number): string {
@@ -67,7 +70,7 @@ function rowExcerpt(capture: ClipData['capture']): string | null {
 export default function ClipRow({
   clip, selected, onClick, author,
   isSelectMode = false, isSelected = false, onSelect,
-  onAuthorContextMenu,
+  onAuthorContextMenu, engagement,
 }: ClipRowProps) {
   const { capture, evaluation } = clip;
   const domain = domainOf(capture.url);
@@ -113,6 +116,20 @@ export default function ClipRow({
                 {caster}
               </span>
             </>
+          )}
+          {engagement && (engagement.likes > 0 || engagement.replies > 0) && (
+            <span className="clip-engagement">
+              {engagement.likes > 0 && (
+                <span className={engagement.liked ? 'liked' : undefined} aria-label={`${engagement.likes} like${engagement.likes === 1 ? '' : 's'}`}>
+                  <ThumbsUpIcon filled={engagement.liked} size={12} /> {engagement.likes}
+                </span>
+              )}
+              {engagement.replies > 0 && (
+                <span aria-label={`${engagement.replies} repl${engagement.replies === 1 ? 'y' : 'ies'}`}>
+                  <ReplyIcon size={11} /> {engagement.replies}
+                </span>
+              )}
+            </span>
           )}
         </div>
         <div className="clip-glyph-row">

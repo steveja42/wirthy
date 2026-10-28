@@ -8,7 +8,7 @@
 import { useState, useMemo } from 'react';
 import { npubEncode } from 'nostr-tools/nip19';
 import { CATEGORIES, SIGNAL_LEVELS, deriveQualifierOptions, matchesAuthors, matchesQualifiers, matchesSignal } from '@/lib/constants';
-import type { ClipData } from '@/lib/types';
+import type { AuthState, ClipData } from '@/lib/types';
 import { EMPTY_FILTERS, type FeedFilters } from '@/lib/feed-url';
 import { castPath } from '@/lib/nostr/cast-ref';
 import type { ClipBody } from '@/lib/bridge/ClipStoreContext';
@@ -24,6 +24,8 @@ import CollapsibleSection from '@/components/layout/CollapsibleSection';
 import AuthorContextMenu from '@/components/menu/AuthorContextMenu';
 import { useSidebarSections } from '@/hooks/useSidebarSections';
 import { useFollowMutation } from '@/hooks/useFollowMutation';
+import { useCastEngagement } from '@/hooks/useCastEngagement';
+import type { CastEngagementProps } from './CastEngagement';
 
 // One publisher in the filter panel: an author present in the loaded feed, with how
 // many of the loaded posts they published.
@@ -249,17 +251,18 @@ function ExploreFilterPanel({
   );
 }
 
-// One clip's full detail view inside the Stream (focus) view. Thin wrapper over
-// DetailPanel — delete/note-edit are no-ops here, same as the single detail pane,
-// since the public Explore feed has no owned clips to mutate.
+// One cast's full detail view (the single detail pane, and each card of the Stream view).
+// Read-only: a public cast can't be deleted or have its note edited from here.
 function StreamCard({
   clip,
   author,
   onAuthorContextMenu,
+  engagement,
 }: {
   clip: ClipData | null;
   author?: AuthorProfile;
   onAuthorContextMenu?: (pubkey: string, x: number, y: number) => void;
+  engagement?: CastEngagementProps;
 }) {
   return (
     <DetailPanel
@@ -271,6 +274,8 @@ function StreamCard({
       onBodyFetched={() => {}}
       onAuthorContextMenu={onAuthorContextMenu}
       shareHref={clip ? castPath(clip) : null}
+      engagement={engagement}
+      readOnly
     />
   );
 }
@@ -292,7 +297,14 @@ interface CastFeedProps {
   // its own for most auth modes). Defaults false so call sites that don't
   // pass it (Library's Stream reuse, tests) simply disable the menu action.
   extensionPresent?: boolean;
+  // The signed-in identity. Liking and replying need a NIP-07 wallet session.
+  auth?: AuthState;
+  // The page has a NIP-07 wallet, so a restored (read-only) session can still sign.
+  walletAvailable?: boolean;
+  onSignIn?: () => void;
 }
+
+const GUEST: AuthState = { status: 'guest', pubkey: null };
 
 const EMPTY_READ: Set<string> = new Set();
 
@@ -309,9 +321,22 @@ function toggled(list: string[], value: string): string[] {
   return list.includes(value) ? list.filter((x) => x !== value) : [...list, value];
 }
 
-export default function CastFeed({ clips, filters, onFiltersChange, title, follows = [], authors = EMPTY_AUTHORS, isSignedIn = false, read, markRead, extensionPresent = false }: CastFeedProps) {
+export default function CastFeed({ clips, filters, onFiltersChange, title, follows = [], authors = EMPTY_AUTHORS, isSignedIn = false, read, markRead, extensionPresent = false, auth = GUEST, walletAvailable = false, onSignIn }: CastFeedProps) {
   const readSet = read ?? EMPTY_READ;
   const { isFollowing, toggleFollow } = useFollowMutation(follows, extensionPresent);
+  // All loaded casts, not the filtered list, so changing a filter doesn't re-subscribe.
+  const engagement = useCastEngagement(clips, auth, walletAvailable);
+  const engagementFor = (clip: ClipData): CastEngagementProps => ({
+    view: engagement.get(clip),
+    canAct: engagement.canAct,
+    onToggleLike: () => engagement.toggleLike(clip),
+    onReply: (parent, text) => engagement.reply(clip, parent, text),
+    onSignIn,
+  });
+  const rowEngagement = (clip: ClipData) => {
+    const v = engagement.get(clip);
+    return { likes: v.likes, replies: v.replyCount, liked: v.liked };
+  };
   const [authorMenu, setAuthorMenu] = useState<{ pubkey: string; x: number; y: number } | null>(null);
   const openAuthorMenu = (pubkey: string, x: number, y: number) => setAuthorMenu({ pubkey, x, y });
   // Filter state is owned by the page (it lives in the URL); these are its views.
@@ -443,6 +468,7 @@ export default function CastFeed({ clips, filters, onFiltersChange, title, follo
                 onClick={() => handleSelectClip(clip.capture.id)}
                 author={clip.capture.authorPubkey ? authors.get(clip.capture.authorPubkey) : undefined}
                 onAuthorContextMenu={openAuthorMenu}
+                engagement={rowEngagement(clip)}
               />
             ))
           )}
@@ -465,6 +491,7 @@ export default function CastFeed({ clips, filters, onFiltersChange, title, follo
               clip={clip}
               author={clip.capture.authorPubkey ? authors.get(clip.capture.authorPubkey) : undefined}
               onAuthorContextMenu={openAuthorMenu}
+              engagement={engagementFor(clip)}
             />
           ))
         )}
@@ -505,6 +532,7 @@ export default function CastFeed({ clips, filters, onFiltersChange, title, follo
               clip={selected}
               author={selected?.capture.authorPubkey ? authors.get(selected.capture.authorPubkey) : undefined}
               onAuthorContextMenu={openAuthorMenu}
+              engagement={selected ? engagementFor(selected) : undefined}
             />
           )}
         showFeed={viewMode === 'list'}

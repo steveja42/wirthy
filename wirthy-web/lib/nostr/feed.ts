@@ -27,6 +27,12 @@ export function rawDedupKey(e: Event): string {
   return longFormId ? `${e.pubkey}:${longFormId}` : e.id;
 }
 
+// A cast's kind-1 never carries an `e` tag, so one that does is a reply that copied the
+// #wirthy hashtag (exported for tests).
+export function isReplyNotCast(e: Event): boolean {
+  return e.kind === 1 && e.tags.some((t) => t[0] === 'e');
+}
+
 // The base REQ every feed subscription shares, narrowed by an optional relay scope
 // (see relayScope in lib/feed-url.ts) so "all posts by X" isn't capped at the newest 50.
 function baseFilter(scope: RelayScope): Filter {
@@ -81,7 +87,7 @@ export function subscribeFeed(
           if (closed) return;
           sawAny = true;
           oldest = oldest === undefined ? e.created_at : Math.min(oldest, e.created_at);
-          if (e.pubkey === TEST_CAST_PUBKEY) return;
+          if (e.pubkey === TEST_CAST_PUBKEY || isReplyNotCast(e)) return;
           collectedKeys.add(rawDedupKey(e));
           onEvent(e);
         },
@@ -116,7 +122,7 @@ export function subscribeFeed(
       sub = pool.subscribeMany(relays, filter, {
         onevent: (e) => {
           if (closed) return;
-          if (e.pubkey === TEST_CAST_PUBKEY) return;
+          if (e.pubkey === TEST_CAST_PUBKEY || isReplyNotCast(e)) return;
           onEvent(e);
         },
         oneose: () => {},
@@ -127,7 +133,7 @@ export function subscribeFeed(
   } else {
     const filter: Filter = { ...baseFilter(scope), limit: FEED_LIMIT };
     sub = pool.subscribeMany(relays, filter, {
-      onevent: onEvent,
+      onevent: (e) => { if (!isReplyNotCast(e)) onEvent(e); },
       oneose: () => {
         log(LL.NORMAL, '[nostr] subscribeFeed EOSE from', relays);
         onEose();

@@ -1,7 +1,7 @@
-// Subscribes to Nostr kind:0 profile metadata for the distinct authors currently in
-// the feed and returns a pubkey -> AuthorProfile map. Re-subscribes only when the set
-// of distinct authors changes (not on every clip append). The profiles module is
-// dynamically imported so it never runs server-side.
+// Subscribes to Nostr kind:0 profile metadata for a set of pubkeys and returns a
+// pubkey -> AuthorProfile map. Re-subscribes only when the set of distinct pubkeys
+// changes (not on every append or re-order). The profiles module is dynamically
+// imported so it never runs server-side.
 
 'use client';
 
@@ -11,24 +11,17 @@ import type { AuthorProfile } from '@/lib/nostr/profiles';
 
 const EMPTY: Map<string, AuthorProfile> = new Map();
 
-export function useAuthorProfiles(clips: ClipData[]): Map<string, AuthorProfile> {
-  // Stable key over the distinct author set so the effect only re-runs when the
-  // membership changes, not when clips are merely re-ordered or appended.
-  const authorKey = useMemo(() => {
-    const set = new Set<string>();
-    for (const c of clips) if (c.capture.authorPubkey) set.add(c.capture.authorPubkey);
-    return [...set].sort().join(',');
-  }, [clips]);
+export function useProfiles(pubkeys: Iterable<string>): Map<string, AuthorProfile> {
+  // Stable key over the distinct set, so the effect only re-runs when membership changes.
+  const key = [...new Set(pubkeys)].sort().join(',');
 
-  // Tagged with the author set it was fetched for, so a membership change reads
-  // as empty during render instead of via a setState at the top of the effect.
+  // Tagged with the set it was fetched for, so a membership change reads as empty
+  // during render instead of via a setState at the top of the effect.
   const [entry, setEntry] = useState<{ key: string; profiles: Map<string, AuthorProfile> } | null>(null);
-  const profiles = authorKey && entry?.key === authorKey ? entry.profiles : EMPTY;
+  const profiles = key && entry?.key === key ? entry.profiles : EMPTY;
 
   useEffect(() => {
-    if (!authorKey) return;
-    const pubkeys = authorKey.split(',');
-
+    if (!key) return;
     let cancelled = false;
     let cleanup: (() => void) | undefined;
 
@@ -36,11 +29,11 @@ export function useAuthorProfiles(clips: ClipData[]): Map<string, AuthorProfile>
       try {
         const { subscribeAuthorProfiles } = await import('@/lib/nostr/profiles');
         if (cancelled) return;
-        cleanup = subscribeAuthorProfiles(pubkeys, (next) => {
-          if (!cancelled) setEntry({ key: authorKey, profiles: next });
+        cleanup = subscribeAuthorProfiles(key.split(','), (next) => {
+          if (!cancelled) setEntry({ key, profiles: next });
         });
       } catch {
-        if (!cancelled) setEntry({ key: authorKey, profiles: EMPTY });
+        if (!cancelled) setEntry({ key, profiles: EMPTY });
       }
     })();
 
@@ -48,7 +41,13 @@ export function useAuthorProfiles(clips: ClipData[]): Map<string, AuthorProfile>
       cancelled = true;
       cleanup?.();
     };
-  }, [authorKey]);
+  }, [key]);
 
   return profiles;
+}
+
+/** Profiles of the distinct authors of `clips`. */
+export function useAuthorProfiles(clips: ClipData[]): Map<string, AuthorProfile> {
+  const pubkeys = useMemo(() => clips.flatMap((c) => (c.capture.authorPubkey ? [c.capture.authorPubkey] : [])), [clips]);
+  return useProfiles(pubkeys);
 }
