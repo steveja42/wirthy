@@ -19,7 +19,8 @@ export interface GoatCounterHit {
   ref?: string;
   query?: string;
   event?: boolean;
-  size?: number[];
+  // A STRING: the API spec says number[], but the server parses it as text and 400s on an array.
+  size?: string;
   bot?: number;
   language?: string;
   ip?: string;
@@ -41,7 +42,7 @@ export function hitFromRequest(url: URL, headers: Headers, ip: string | undefine
     ref: field(q.get('r')),
     query: field(q.get('q')),
     event: q.get('e') === 'true' || undefined,
-    size: Number.isFinite(width) && width > 0 ? [width] : undefined,
+    size: Number.isFinite(width) && width > 0 ? String(width) : undefined,
     bot: Number.isInteger(bot) && bot > 0 ? bot : undefined,
     language: headers.get('accept-language')?.split(',')[0]?.split(';')[0]?.trim() || undefined,
     ip: ip || headers.get('x-nf-client-connection-ip') || undefined,

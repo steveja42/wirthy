@@ -48,7 +48,7 @@ describe('count relay', () => {
     const body = JSON.parse(String(sent[0].init?.body));
     expect(body.hits).toEqual([{
       path: '/explore', title: 'Explore', ref: 'https://example.com/', query: '?x=1',
-      size: [1280], language: 'en-GB', ip: '203.0.113.7', user_agent: 'Mozilla/5.0 TestBrowser',
+      size: '1280', language: 'en-GB', ip: '203.0.113.7', user_agent: 'Mozilla/5.0 TestBrowser',
     }]);
   });
 
