@@ -1,8 +1,7 @@
 'use client';
 
 // GoatCounter loader + SPA pageview tracker. The script and its data endpoint are both
-// same-origin (Netlify reverse-proxies /api/stats/* → discernedweb.goatcounter.com), so
-// hostname-based tracker blockers can't drop them. Active only on the production host;
+// same-origin (netlify/functions/count.mts relays hits). Active only on the production host;
 // a no-op in dev and on Netlify deploy previews. See wirthy-web/CLAUDE.md → Analytics.
 
 import Script from 'next/script';

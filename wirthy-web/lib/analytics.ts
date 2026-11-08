@@ -1,10 +1,9 @@
-// GoatCounter analytics helpers. All traffic is same-origin (Netlify reverse-proxies
-// /api/stats/* → discernedweb.goatcounter.com) so hostname-based tracker blockers can't
-// drop it. Cookieless, no PII, no cross-site tracking. See wirthy-web/CLAUDE.md → Analytics.
+// GoatCounter analytics helpers. Cookieless, no PII, no cross-site tracking.
+// See wirthy-web/CLAUDE.md → Analytics.
 
 import { LL, log } from '@/lib/logger';
 
-/** Same-origin data endpoint. Netlify reverse-proxies /api/stats/count → discernedweb.goatcounter.com/count. */
+/** Same-origin data endpoint: netlify/functions/count.mts relays each hit via GoatCounter's API. */
 export const GOATCOUNTER_ENDPOINT = '/api/stats/count';
 /** Same-origin vendored counter script (public/api/stats/count.js) — avoids a gc.zgo.at hostname block. */
 export const GOATCOUNTER_SCRIPT = '/api/stats/count.js';

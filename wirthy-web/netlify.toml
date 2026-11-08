@@ -31,13 +31,13 @@
 # feedback.mts declares `export const config = { path: '/api/feedback' }`, so the v2
 # runtime serves it at that same-origin path directly — no [[redirects]] alias needed.
 # /api/* is used rather than the default /.netlify/functions/* because that well-known
-# path is filtered by some blockers and corporate proxies (same rationale as the
-# GoatCounter proxy below).
+# path is filtered by some blockers and corporate proxies.
 #
 # Required env vars (set in the Netlify dashboard, never committed):
 #   TURNSTILE_SECRET_KEY   — Cloudflare Turnstile secret half (functions scope)
 #   GITHUB_FEEDBACK_TOKEN  — fine-grained PAT, Issues:write on steveja42/wirthy
 #   GITHUB_FEEDBACK_REPO   — optional; defaults to steveja42/wirthy
+#   GOATCOUNTER_API_TOKEN  — GoatCounter API token, "Record pageviews" permission (count.mts)
 # The public half, NEXT_PUBLIC_TURNSTILE_SITE_KEY, is read at BUILD time and must be
 # build-scoped, not functions-only.
 [functions]
@@ -54,21 +54,8 @@
     Content-Type = "application/json; charset=utf-8"
     Cache-Control = "public, max-age=300"
 
-# GoatCounter analytics — reverse-proxied same-origin so hostname-based tracker
-# blockers (uBlock etc.) can't drop the hit. status=200 keeps the URL same-origin
-# in the browser; force=true wins even though the path isn't a real file.
-#
-# IMPORTANT: match the EXACT data path only, NOT /api/stats/* — a wildcard + force
-# would also swallow /api/stats/count.js (the vendored counter script in public/),
-# proxying it to a nonexistent goatcounter.com/count.js → 404, so count.js never
-# loads and nothing is tracked. count.js POSTs to /api/stats/count?<query>; the
-# query string doesn't affect path matching, so this exact rule still catches it,
-# while /api/stats/count.js falls through to the static file.
-[[redirects]]
-  from = "/api/stats/count"
-  to = "https://discernedweb.goatcounter.com/count"
-  status = 200
-  force = true
+# GoatCounter hits are relayed by netlify/functions/count.mts, NOT a [[redirects]] proxy: since
+# 2026-08-16 GoatCounter silently drops (200, never stored) every hit proxied from Netlify's IPs.
 
 # Old domain: discerned.online is a domain alias of this site. Its NIP-05 file keeps
 # serving (existing name@discerned.online identities); everything else 301s to wirthy.app.

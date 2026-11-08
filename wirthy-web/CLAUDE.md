@@ -28,7 +28,7 @@ No CSS framework — all styling is plain CSS custom properties defined in `app/
 ## Key architectural rules
 
 - **No clip creation UI.** The `+` button must never appear. Clipping is the extension's job.
-- **No backend, with two deliberate exceptions.** Everything is client-side — Nostr relays for the public feed, postMessage bridge for private clips. Server-side touches: a Netlify reverse-proxy for analytics (see Analytics), which forwards but stores nothing of ours, and **two Netlify Functions**: `netlify/functions/feedback.mts` (see Feedback function), needed because filing a GitHub issue requires holding a token, and `netlify/functions/share-page.mts` (see Shareable URLs), which injects crawler metadata into the cast/publisher shells. It is read-only and stateless, and the pages work without it.
+- **No backend, with two deliberate exceptions.** Everything is client-side — Nostr relays for the public feed, postMessage bridge for private clips. Server-side touches are **three Netlify Functions**: `netlify/functions/count.mts` (see Analytics), which relays analytics hits and stores nothing of ours; `netlify/functions/feedback.mts` (see Feedback function), needed because filing a GitHub issue requires holding a token, and `netlify/functions/share-page.mts` (see Shareable URLs), which injects crawler metadata into the cast/publisher shells. It is read-only and stateless, and the pages work without it.
 - **WSS only** for relay connections — never `ws://`.
 - **Sanitize Nostr content** before rendering — never trust raw event content as HTML. Anyone can publish a `#wirthy` event, so any event field that reaches `dangerouslySetInnerHTML` must go through `sanitizePublicHtml` (`lib/sanitize-html.ts`, DOMPurify plus the extension's `dx-*`/`tweet-*` class contract, no inline styles/forms/ids). Today that is one field — a kind-1's `quote` tag, rendered as the selection excerpt by `ExcerptHtml` in `DetailPanel.tsx` — and it was injected raw until 2026-10-12, a stored XSS on `/explore` and `/c/<id>`. The extension's capture sanitiser is no protection: a hostile event never went through the extension. `bodyHtml` is safe only because public parsing never sets it (it arrives over the origin-pinned bridge from the author's own IndexedDB); markdown is safe because `react-markdown` renders no raw HTML; React 19 blocks `javascript:` in `href`. The helper **fails closed** (returns `''` with no DOM), because DOMPurify itself returns its input unchanged there. Guarded by `tests/sanitize-html.test.tsx`, which renders a hostile signed event through `DetailPanel`.
 - **Origin-pin postMessage** on the extension bridge — both sides check `e.origin`.
@@ -41,9 +41,13 @@ No CSS framework — all styling is plain CSS custom properties defined in `app/
 
 Privacy-respecting traffic measurement via **GoatCounter** (cookieless, no PII, no cross-site tracking; aggregate page + download counts only). The README's "sovereignty principles" reflect this reframing — keep them in sync if the setup changes.
 
-**Same-origin proxying (bypasses hostname-based tracker blockers).** Both the counter script and its data endpoint are first-party:
+**Same-origin script and endpoint (bypasses hostname-based tracker blockers).** GoatCounter is on EasyPrivacy (uBlock Origin's default, Brave Shields), so a direct `goatcounter.com` hit is dropped for those visitors.
 - **Script**: GoatCounter's `count.js` is **vendored** at `public/api/stats/count.js` (served at `/api/stats/count.js`). Refresh manually from `https://gc.zgo.at/count.js` if it drifts — the provenance/fetch-date is in the file header.
-- **Data endpoint**: `data-goatcounter="/api/stats/count"`. Netlify reverse-proxies the **exact** path `/api/stats/count` → `https://discernedweb.goatcounter.com/count` (`status = 200`, `force = true`) in `wirthy-web/netlify.toml` (the sole Netlify config — dashboard "Package directory" = `wirthy-web`). **Match the exact path, NOT `/api/stats/*`** — a wildcard + `force` would also swallow `/api/stats/count.js` (the vendored script) and proxy it to a nonexistent `goatcounter.com/count.js`, 404-ing the loader so nothing tracks. count.js POSTs to `/api/stats/count?<query>`; the query doesn't affect path matching, so the exact rule catches the hit while `/api/stats/count.js` falls through to the static file. The site code (`discernedweb`) is a **committed literal**, never a client env var — Netlify can't interpolate env vars in redirect targets, and the browser only ever talks to same-origin `/api/stats/*` anyway.
+- **Data endpoint**: `data-goatcounter="/api/stats/count"`, served by the Netlify function `netlify/functions/count.mts`. It maps count.js's query (`p t r q e s b`) to a hit for GoatCounter's **server-side API** (`POST /api/v0/count`, Bearer `GOATCOUNTER_API_TOKEN`, a token with "Record pageviews" permission, set in the dashboard), adding the visitor's `ip` (`context.ip`) and `user_agent`. It returns the 1x1 GIF count.js's `<img>` fallback waits for.
+- **Why not a `[[redirects]]` proxy.** That was the original setup, and from **2026-08-16** GoatCounter silently discarded every proxied hit: the response stayed a 200 GIF, so nothing looked broken, and the dashboard read zero for ~12 weeks. Measured 2026-11-07 with two labelled hits carrying the same browser UA: the direct one was stored, the Netlify-relayed one was not (GoatCounter saw the relay's datacenter IP and treated it as a bot; country data was wrong too). The API is GoatCounter's supported way to count from a server, because the IP and UA are declared rather than inferred.
+- **Never a silent 200.** The function returns 500 when the token is missing and 502 when GoatCounter answers anything but 202, logging both to the function log. Even so, a 2xx proves only acceptance: to confirm hits are STORED, query `/api/v0/stats/hits` with a read-only token, passing **full timestamps** (`start=…T00:00:00Z`) — date-only ranges returned nothing for hits that were there.
+- **Blockers can still match the PATH.** Generic filter rules target tracker-like paths on any host; check uBlock Origin's logger on wirthy.app after any change here, and rename the paths if `/api/stats/*` is ever listed.
+- Guarded by `tests/count-function.test.ts` (real handler, `fetch` stubbed).
 
 **Code:**
 - `lib/analytics.ts` — `GOATCOUNTER_ENDPOINT` / `GOATCOUNTER_SCRIPT` / `PROD_HOST` constants, the `window.goatcounter` type, `isAnalyticsHost()`, and the null-safe `countEvent(path, title)` / `countPageview(path)` helpers.
@@ -74,7 +78,7 @@ Privacy-respecting traffic measurement via **GoatCounter** (cookieless, no PII, 
 
 ## Feedback function
 
-`netlify/functions/feedback.mts` turns a `/feedback` submission into a GitHub issue on the **public** `steveja42/wirthy`. It is a v2-runtime function (`.mts` → standard `Request`/`Response`) and declares `export const config = { path: '/api/feedback' }`, so it is served same-origin at that path with no `[[redirects]]` alias — `/.netlify/functions/*` is avoided because some blockers and corporate proxies filter that well-known path (same rationale as the GoatCounter proxy).
+`netlify/functions/feedback.mts` turns a `/feedback` submission into a GitHub issue on the **public** `steveja42/wirthy`. It is a v2-runtime function (`.mts` → standard `Request`/`Response`) and declares `export const config = { path: '/api/feedback' }`, so it is served same-origin at that path with no `[[redirects]]` alias — `/.netlify/functions/*` is avoided because some blockers and corporate proxies filter that well-known path.
 
 All the interesting logic lives in `lib/feedback-format.ts`, which is **pure and dependency-free** so both the browser and the function import it and it is unit-testable without a running function. Tests: `tests/feedback-format.test.ts` (the helpers) and `tests/feedback-function.test.ts` (the real handler with `fetch` stubbed — no request ever leaves the machine).
 
@@ -179,7 +183,9 @@ hooks/
   useFirstVisit.ts
   useLibraryBridge.ts  ← bridge listener for /clips, 2s timeout
 netlify/functions/
-  feedback.mts         ← the ONLY server-side code; own tsconfig.json
+  feedback.mts         ← /feedback → GitHub issue; own tsconfig.json
+  share-page.mts       ← crawler metadata for /c/* and /p/*
+  count.mts            ← GoatCounter hit relay (/api/stats/count)
 scripts/
   gen-lightning-qr.mjs ← regenerates public/support/lightning-qr.svg (`pnpm gen:qr`)
 art/

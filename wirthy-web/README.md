@@ -200,7 +200,7 @@ The `MiniBeacon` and `HeroBeacon` SVGs are hand-authored and load-bearing for br
 
 - No user accounts, no server-side data storage — clips live in the extension's local IndexedDB and nowhere else
 - The single Netlify function exists only to file feedback as a GitHub issue; it stores nothing
-- Privacy-respecting, cookieless analytics (GoatCounter) — aggregate page/download counts only, no cookies, no personal data, no cross-site tracking; proxied through our own domain
+- Privacy-respecting, cookieless analytics (GoatCounter) — aggregate page/download counts only, no cookies, no personal data, no cross-site tracking
 - All relay connections use WSS only
 - Nostr content is sanitized before rendering
 - The extension bridge is origin-pinned on both sides
