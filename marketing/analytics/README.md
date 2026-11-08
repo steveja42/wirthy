@@ -110,6 +110,7 @@ Every outreach action, so referrer data can be interpreted afterwards.
 |---|---|---|---|---|
 | — | nostrapps.com | Directory listing | `../directories/nostrapps.toml` | Submitted |
 | — | awesome-nostr / nostr.net | Directory listing, PR #723 | `../directories/awesome-nostr-nostr.net.md` | **Merged — listed.** Link-fix PR #725 open |
+| 2026-11-06 | Nostr (maintainer npub) | Introduction post | `../social/launch-posts.md` → "Nostr — introduction" | |
 
 Dates are unrecorded for the two entries above; fill them in if you have them. Log everything
 from here on, including things that went nowhere — a channel that produced nothing is worth

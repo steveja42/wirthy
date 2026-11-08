@@ -52,6 +52,27 @@ For reposting, or when the long one is too much.
 
 ---
 
+## Nostr — introduction (A1, posted 2026-11-06)
+
+Posted from the maintainer npub.
+
+> Introducing Wirthy, an excellent web clipper that captures web pages cleanly, and lets you
+> rate, save, and publish your clips to Nostr.
+>
+> A browser extension handles the clipping and publishing (Kind 1 and Kind 30023), while the
+> web app lets you browse your own clips and discover content published by others using Wirthy.
+>
+> Explore it at https://wirthy.app
+>
+> Feedback is welcome! I'm also looking for a few brave souls willing to publish some content
+> and help get things started. 🚀
+>
+> #Nostr #NostrApps #NostrDev #ContentCuration
+
+*[C-02, C-04, C-10, C-11, C-12, C-15]*
+
+---
+
 ## Nostr — ongoing casts (A1, the actual work)
 
 **This is the channel that matters, and it isn't an announcement.** Cast real posts on a
